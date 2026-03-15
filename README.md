@@ -66,7 +66,6 @@ git clone https://github.com/FYZAFH/superpowers-lite.git
 | `systematic-debugging` | 4-phase root cause process |
 | `verification-before-completion` | Final safety net before claiming "done" |
 | `using-superpowers` | Introduction to the skills system |
-| `writing-skills` | Create new skills |
 
 ## Agents
 
