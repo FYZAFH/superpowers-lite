@@ -153,6 +153,7 @@ If reviewer suggests adding unrequested features: check codebase for actual usag
 ## Red Flags
 
 **Never:**
+- Implement the code yourself instead of using sub-agents.
 - Start implementation on main/master branch without explicit user consent
 - Skip reviews (spec compliance OR code quality)
 - Proceed with unfixed issues
@@ -162,7 +163,7 @@ If reviewer suggests adding unrequested features: check codebase for actual usag
 - Accept "close enough" on spec compliance
 - Skip review loops (reviewer found issues = implementer fixes = review again)
 - Let implementer self-review replace actual review (both are needed)
-- **Start code quality review before spec compliance passes**
+- Start code quality review before spec compliance passes
 - Move to next task while either review has open issues
 
 **If subagent asks questions:** Answer clearly and completely. Don't rush them.
