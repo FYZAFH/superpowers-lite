@@ -38,6 +38,10 @@ git diff {BASE_SHA}..{HEAD_SHA}
 
 **Architecture:**
 - Sound design decisions?
+- Each file has one clear responsibility with a well-defined interface?
+- Units decomposed so they can be understood and tested independently?
+- Following the file structure from the plan?
+- New files aren't already large, existing files didn't grow significantly?
 - Scalability considerations?
 - Performance implications?
 - Security concerns?
