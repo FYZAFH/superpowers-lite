@@ -1,9 +1,9 @@
 ---
-name: receiving-code-review
+name: code-review
 description: Use when processing code review feedback from reviewer subagents, before implementing suggestions - requires technical verification against the codebase, not blind implementation
 ---
 
-# Receiving Subagent Code Review
+# Code Review
 
 ## Overview
 

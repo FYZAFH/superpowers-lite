@@ -24,6 +24,21 @@ digraph when_to_use {
 }
 ```
 
+## Setup: Isolated Workspace
+
+Before executing any tasks, create an isolated worktree:
+
+```bash
+# Ensure .worktrees/ is git-ignored
+git check-ignore -q .worktrees 2>/dev/null || echo '.worktrees' >> .gitignore && git add .gitignore && git commit -m "Add .worktrees to .gitignore"
+
+# Create worktree
+git worktree add .worktrees/$BRANCH_NAME -b $BRANCH_NAME
+cd .worktrees/$BRANCH_NAME
+```
+
+Run project setup (npm install / cargo build / pip install / go mod download) and verify tests pass before proceeding.
+
 ## The Process
 
 ```dot
@@ -230,9 +245,8 @@ Done!
 ## Integration
 
 **Required workflow skills:**
-- **superpowers:using-git-worktrees** - REQUIRED: Set up isolated workspace before starting
 - **superpowers:writing-plans** - Creates the plan this skill executes
-- **superpowers:requesting-code-review** - Code review template for reviewer subagents
+- **superpowers:code-review** - Evaluate reviewer feedback before implementing
 - **superpowers:finishing-a-development-branch** - Complete development after all tasks
 
 **Subagents should use:**
