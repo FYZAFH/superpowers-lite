@@ -1,32 +1,52 @@
 ---
 name: code-review
-description: Use when processing code review feedback from reviewer subagents, before implementing suggestions - requires technical verification against the codebase, not blind implementation
+description: Two-stage code review via subagents — spec compliance then code quality. Guides evaluation of reviewer feedback.
 ---
 
 # Code Review
 
-## Overview
+## Two-Stage Review Process
 
-Subagent reviewers catch real issues, but they also lack full session context. Evaluate every suggestion against codebase reality before implementing.
+Every implementation gets two independent reviews, in order:
 
-**Core principle:** Verify before implementing. Technical correctness over compliance.
+1. **Spec compliance** (`spec-reviewer` agent) — Did they build what was requested? Nothing more, nothing less.
+2. **Code quality** (`code-reviewer` agent) — Is it well-built? Clean, tested, production-ready.
 
-## The Response Pattern
+Only proceed to stage 2 after stage 1 passes.
+
+## Dispatching Reviewers
+
+Dispatch each reviewer as a subagent with the spec/plan paths and git range:
 
 ```
-WHEN receiving subagent review feedback:
-
-1. READ: Complete feedback without reacting
-2. VERIFY: Check each suggestion against codebase reality
-3. EVALUATE: Technically sound for THIS codebase?
-4. CATEGORIZE: Critical / Important / Minor / Wrong
-5. IMPLEMENT: One item at a time, test each
+Agent tool:
+  subagent_type: spec-reviewer
+  prompt: |
+    Review: [task description]
+    Spec: [path to spec]
+    Plan: [path to plan]
+    Base: [base SHA]
+    Head: [head SHA]
 ```
 
-## Handling Review Results
+```
+Agent tool:
+  subagent_type: code-reviewer
+  prompt: |
+    Review: [task description]
+    Spec: [path to spec]
+    Plan: [path to plan]
+    Base: [base SHA]
+    Head: [head SHA]
+```
+
+## Evaluating Reviewer Feedback
+
+Subagent reviewers catch real issues, but they lack full session context. **Verify before implementing. Technical correctness over compliance.**
 
 ### Reviewer approves
-Proceed to next step in workflow.
+
+Proceed to next stage or next task.
 
 ### Reviewer finds issues
 
@@ -43,45 +63,21 @@ FOR each issue:
 
 ### YAGNI Check
 
-```
-IF reviewer suggests "implementing properly" or adding features:
-  grep codebase for actual usage
+If reviewer suggests adding features or "implementing properly":
+- Check codebase for actual usage
+- If unused: skip (YAGNI)
+- If used: implement
 
-  IF unused: Skip (YAGNI)
-  IF used: Implement
-```
-
-## Implementation Order
-
-```
-FOR multi-item feedback:
-  1. Blocking issues (breaks, security)
-  2. Simple fixes (typos, imports)
-  3. Complex fixes (refactoring, logic)
-  4. Test each fix individually
-  5. Verify no regressions
-```
-
-## When To Push Back
+### When To Push Back
 
 Push back when:
 - Suggestion breaks existing functionality
 - Reviewer lacks full context (common with subagents)
-- Violates YAGNI (unused feature)
+- Violates YAGNI
 - Technically incorrect for this stack
 - Conflicts with the plan or spec
 
-**How:** Note the technical reason, skip the suggestion, continue.
-
-## Common Mistakes
-
-| Mistake | Fix |
-|---------|-----|
-| Blind implementation | Verify against codebase first |
-| Batch without testing | One at a time, test each |
-| Assuming reviewer is right | Subagents lack session context — check |
-| Adding unrequested features | YAGNI — reviewer may over-suggest |
-| Ignoring all feedback | Reviewers catch real issues — evaluate fairly |
+Note the technical reason, skip the suggestion, continue.
 
 ## The Bottom Line
 
