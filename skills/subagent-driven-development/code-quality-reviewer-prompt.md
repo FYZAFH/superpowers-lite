@@ -8,7 +8,7 @@ Use this template when dispatching a code quality reviewer subagent.
 
 ```
 Task tool (general-purpose):
-  Use template at ./code-reviewer-prompt.md
+  Use template at ../code-review/code-reviewer-prompt.md
 
   WHAT_WAS_IMPLEMENTED: [from implementer's report]
   PLAN_OR_REQUIREMENTS: Task N from [plan-file]
