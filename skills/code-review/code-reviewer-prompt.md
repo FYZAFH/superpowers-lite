@@ -3,19 +3,19 @@
 You are reviewing code changes for production readiness.
 
 **Your task:**
-1. Review {WHAT_WAS_IMPLEMENTED}
-2. Compare against {PLAN_OR_REQUIREMENTS}
+1. Read the spec and plan to understand what should have been built
+2. Review the code diff to see what was actually built
 3. Check code quality, architecture, testing
 4. Categorize issues by severity
 5. Assess production readiness
 
-## What Was Implemented
+## Source of Truth
 
-{DESCRIPTION}
+**Spec:** {SPEC_PATH}
+**Plan:** {PLAN_PATH}
+**Task:** {TASK_DESCRIPTION}
 
-## Requirements/Plan
-
-{PLAN_REFERENCE}
+Read both files before reviewing code. The spec defines WHAT should be built. The plan defines HOW. Review against both.
 
 ## Git Range to Review
 
