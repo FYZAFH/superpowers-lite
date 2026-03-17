@@ -48,7 +48,7 @@ This structure informs the task decomposition. Each task should produce self-con
 ```markdown
 # [Feature Name] Implementation Plan
 
-> **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED: Use superpowers-lite:subagent-driven-development to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** [One sentence describing what this builds]
 
@@ -108,6 +108,7 @@ git commit -m "feat: add specific feature"
 - Exact commands with expected output
 - Reference relevant skills with @ syntax
 - DRY, YAGNI, TDD, frequent commits
+- If you discover an undiscussed question or ambiguity while writing the plan, stop and ask the user. Do not fill gaps with assumptions.
 
 ## Plan Review Loop
 
@@ -134,5 +135,5 @@ After saving the plan:
 
 **"Plan complete and saved to `docs/superpowers/plans/<filename>.md`. Ready to execute?"**
 
-**REQUIRED:** Use superpowers:subagent-driven-development for execution.
+**REQUIRED:** Use superpowers-lite:subagent-driven-development for execution.
 - Fresh subagent per task + two-stage review

@@ -137,4 +137,5 @@ Wait for the user's response. If they request changes, make them and re-run the 
 - **Explore alternatives** - Always propose 2-3 approaches before settling
 - **Incremental validation** - Present design, get approval before moving on
 - **Be flexible** - Go back and clarify when something doesn't make sense
+- **Never assume** - If you discover an undiscussed question while writing the spec, stop and ask the user. Do not fill gaps with assumptions.
 
