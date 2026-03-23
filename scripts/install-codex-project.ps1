@@ -26,14 +26,12 @@ if (Get-Command py -ErrorAction SilentlyContinue) {
 $Arguments = @(
     $Installer,
     'install-project',
-    '--repo-root',
-    $RepoRoot,
-    '--project-root',
-    $ProjectRoot
+    "--repo-root=$RepoRoot",
+    "--project-root=$ProjectRoot"
 )
 
 if ($ArtifactRoot) {
-    $Arguments += @('--artifact-root', $ArtifactRoot)
+    $Arguments += "--artifact-root=$ArtifactRoot"
 }
 
 $PythonArgs = @()

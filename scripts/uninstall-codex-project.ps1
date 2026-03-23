@@ -25,12 +25,11 @@ if (Get-Command py -ErrorAction SilentlyContinue) {
 $Arguments = @(
     $Installer,
     'uninstall-project',
-    '--project-root',
-    $ProjectRoot
+    "--project-root=$ProjectRoot"
 )
 
 if ($ArtifactRoot) {
-    $Arguments += @('--artifact-root', $ArtifactRoot)
+    $Arguments += "--artifact-root=$ArtifactRoot"
 }
 
 $PythonArgs = @()
