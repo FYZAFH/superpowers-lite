@@ -13,7 +13,14 @@ def replace_or_die(text: str, old: str, new: str, relpath: str) -> str:
     return text.replace(old, new)
 
 
-def codex_replacements(logical_root: Path) -> dict[str, list[tuple[str, str]]]:
+def replace_any_or_die(text: str, olds: list[str], new: str, relpath: str) -> str:
+    for old in olds:
+        if old in text:
+            return text.replace(old, new)
+    raise ValueError(f"Missing expected text in {relpath!r}: one of {olds!r}")
+
+
+def codex_replacements(logical_root: Path) -> dict[str, list[tuple[str | list[str], str]]]:
     agents_root = (logical_root / "agents").resolve()
     implementer_path = (agents_root / "implementer.md").as_posix()
     spec_reviewer_path = (agents_root / "spec-reviewer.md").as_posix()
@@ -170,7 +177,10 @@ def codex_replacements(logical_root: Path) -> dict[str, list[tuple[str, str]]]:
         ],
         "skills/systematic-debugging/SKILL.md": [
             (
-                "- **superpowers-lite:verification-before-completion** - Verify fix worked before claiming success",
+                [
+                    "- **superpowers-lite:verification-before-completion** - Verify fix worked before claiming success",
+                    "- **superpowers:verification-before-completion** - Verify fix worked before claiming success",
+                ],
                 "- **`verification-before-completion`** - Verify fix worked before claiming success",
             ),
         ],
@@ -183,7 +193,10 @@ def render_text(text: str, relpath: str, platform: str, logical_root: Path) -> s
 
     replacements = codex_replacements(logical_root).get(relpath, [])
     for old, new in replacements:
-        text = replace_or_die(text, old, new, relpath)
+        if isinstance(old, list):
+            text = replace_any_or_die(text, old, new, relpath)
+        else:
+            text = replace_or_die(text, old, new, relpath)
     return text
 
 

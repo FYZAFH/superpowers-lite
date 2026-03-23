@@ -29,6 +29,32 @@ grep -q 'Use the `subagent-driven-development` skill' "${TMP_DIR}/codex/skills/w
 grep -q "Reference relevant skills by name" "${TMP_DIR}/codex/skills/writing-plans/SKILL.md"
 grep -q "spawn_agent" "${TMP_DIR}/codex/skills/brainstorming/spec-document-reviewer-prompt.md"
 grep -q "spawn_agent" "${TMP_DIR}/codex/skills/writing-plans/plan-document-reviewer-prompt.md"
+grep -q 'verification-before-completion' "${TMP_DIR}/codex/skills/systematic-debugging/SKILL.md"
+
+python3 - <<'PY'
+import importlib.util
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("render_platform_bundle", "scripts/render-platform-bundle.py")
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+logical_root = Path("/tmp/superpowers-lite-codex")
+variants = [
+    "- **superpowers:verification-before-completion** - Verify fix worked before claiming success",
+    "- **superpowers-lite:verification-before-completion** - Verify fix worked before claiming success",
+]
+
+for variant in variants:
+    rendered = module.render_text(
+        variant,
+        "skills/systematic-debugging/SKILL.md",
+        "codex",
+        logical_root,
+    )
+    expected = "- **`verification-before-completion`** - Verify fix worked before claiming success"
+    assert rendered == expected, (variant, rendered)
+PY
 
 for pattern in \
     "bootstrap.md" \
