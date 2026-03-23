@@ -4,7 +4,7 @@ param(
     [string]$RepoRef = 'main',
     [string]$CheckoutDir,
     [string]$CodexHome,
-    [string]$InstallRoot
+    [switch]$Uninstall
 )
 
 $ErrorActionPreference = 'Stop'
@@ -22,19 +22,6 @@ function Default-CheckoutDir() {
         return Join-Path $env:LOCALAPPDATA 'superpowers-lite\repo'
     }
     return Join-Path $HOME 'AppData\Local\superpowers-lite\repo'
-}
-
-function Get-PythonCommand() {
-    if (Get-Command py -ErrorAction SilentlyContinue) {
-        return @('py', '-3')
-    }
-    if (Get-Command python -ErrorAction SilentlyContinue) {
-        return @('python')
-    }
-    if (Get-Command python3 -ErrorAction SilentlyContinue) {
-        return @('python3')
-    }
-    throw 'Python 3 is required to install Superpowers Lite for Codex on Windows.'
 }
 
 if (-not $CheckoutDir) {
@@ -85,28 +72,18 @@ if ($SourceRepo) {
     $SourceRoot = $CheckoutDir
 }
 
-$PythonCommand = Get-PythonCommand
-$Installer = Join-Path $SourceRoot 'scripts\codex_installer.py'
-$Arguments = @(
-    $Installer,
-    'install-global',
-    '--repo-root',
-    $SourceRoot
-)
+if ($Uninstall) {
+    $Installer = Join-Path $SourceRoot 'scripts\uninstall-codex.ps1'
+} else {
+    $Installer = Join-Path $SourceRoot 'scripts\install-codex.ps1'
+}
 
+$Arguments = @()
 if ($CodexHome) {
-    $Arguments += @('--codex-home', $CodexHome)
-}
-if ($InstallRoot) {
-    $Arguments += @('--install-root', $InstallRoot)
+    $Arguments += @('-CodexHome', $CodexHome)
 }
 
-$PythonArgs = @()
-if ($PythonCommand.Count -gt 1) {
-    $PythonArgs = $PythonCommand[1..($PythonCommand.Count - 1)]
-}
-
-& $PythonCommand[0] @PythonArgs @Arguments
+& $Installer @Arguments
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }

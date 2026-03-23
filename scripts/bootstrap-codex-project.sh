@@ -8,18 +8,13 @@ REPO_URL="https://github.com/FYZAFH/superpowers-lite.git"
 REPO_REF="main"
 CHECKOUT_DIR="${XDG_CACHE_HOME:-${HOME}/.cache}/superpowers-lite/repo"
 ARTIFACT_ROOT=""
-CODEX_HOME_DIR=""
-LAUNCHER_PATH=""
-UNINSTALLER_PATH=""
-GLOBAL_CODEX_HOME=""
-INHERIT_GLOBAL_CONFIG=1
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") [--project-root PATH] [--source-repo PATH] [--repo-url URL] [--repo-ref REF] [--checkout-dir PATH] [--artifact-root PATH] [--codex-home PATH] [--launcher PATH] [--uninstaller PATH] [--global-codex-home PATH] [--no-inherit-global-config]
+Usage: $(basename "$0") [--project-root PATH] [--source-repo PATH] [--repo-url URL] [--repo-ref REF] [--checkout-dir PATH] [--artifact-root PATH]
 
-Fetches Superpowers Lite source when needed, then installs a project-local
-Codex setup into the target project.
+Fetches Superpowers Lite source when needed, then installs the native
+project-scoped Codex setup into the target project.
 EOF
 }
 
@@ -48,26 +43,6 @@ while [ $# -gt 0 ]; do
         --artifact-root)
             ARTIFACT_ROOT="${2:?missing path for --artifact-root}"
             shift 2
-            ;;
-        --codex-home)
-            CODEX_HOME_DIR="${2:?missing path for --codex-home}"
-            shift 2
-            ;;
-        --launcher)
-            LAUNCHER_PATH="${2:?missing path for --launcher}"
-            shift 2
-            ;;
-        --uninstaller)
-            UNINSTALLER_PATH="${2:?missing path for --uninstaller}"
-            shift 2
-            ;;
-        --global-codex-home)
-            GLOBAL_CODEX_HOME="${2:?missing path for --global-codex-home}"
-            shift 2
-            ;;
-        --no-inherit-global-config)
-            INHERIT_GLOBAL_CONFIG=0
-            shift
             ;;
         --help|-h)
             usage
@@ -121,10 +96,5 @@ SOURCE_ROOT="$(ensure_checkout)"
 
 cmd=("${SOURCE_ROOT}/scripts/install-codex-project.sh" --project-root "$PROJECT_ROOT")
 [ -n "$ARTIFACT_ROOT" ] && cmd+=(--artifact-root "$ARTIFACT_ROOT")
-[ -n "$CODEX_HOME_DIR" ] && cmd+=(--codex-home "$CODEX_HOME_DIR")
-[ -n "$LAUNCHER_PATH" ] && cmd+=(--launcher "$LAUNCHER_PATH")
-[ -n "$UNINSTALLER_PATH" ] && cmd+=(--uninstaller "$UNINSTALLER_PATH")
-[ -n "$GLOBAL_CODEX_HOME" ] && cmd+=(--global-codex-home "$GLOBAL_CODEX_HOME")
-[ "$INHERIT_GLOBAL_CONFIG" -eq 0 ] && cmd+=(--no-inherit-global-config)
 
-"${cmd[@]}"
+exec "${cmd[@]}"

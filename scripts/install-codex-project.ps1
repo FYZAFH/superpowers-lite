@@ -1,9 +1,6 @@
 param(
     [string]$ProjectRoot = (Get-Location).Path,
-    [string]$ArtifactRoot,
-    [string]$CodexHome,
-    [string]$GlobalCodexHome,
-    [switch]$NoInheritGlobalConfig
+    [string]$ArtifactRoot
 )
 
 $ErrorActionPreference = 'Stop'
@@ -32,15 +29,6 @@ $Arguments = @(
 
 if ($ArtifactRoot) {
     $Arguments += @('--artifact-root', $ArtifactRoot)
-}
-if ($CodexHome) {
-    $Arguments += @('--codex-home', $CodexHome)
-}
-if ($GlobalCodexHome) {
-    $Arguments += @('--global-codex-home', $GlobalCodexHome)
-}
-if ($NoInheritGlobalConfig) {
-    $Arguments += '--no-inherit-global-config'
 }
 
 $PythonArgs = @()

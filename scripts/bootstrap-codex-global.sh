@@ -7,14 +7,14 @@ REPO_URL="https://github.com/FYZAFH/superpowers-lite.git"
 REPO_REF="main"
 CHECKOUT_DIR="${XDG_CACHE_HOME:-${HOME}/.cache}/superpowers-lite/repo"
 CODEX_HOME_DIR=""
-INSTALL_ROOT=""
+UNINSTALL=0
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") [--source-repo PATH] [--repo-url URL] [--repo-ref REF] [--checkout-dir PATH] [--codex-home PATH] [--install-root PATH]
+Usage: $(basename "$0") [--source-repo PATH] [--repo-url URL] [--repo-ref REF] [--checkout-dir PATH] [--codex-home PATH] [--uninstall]
 
-Fetches Superpowers Lite source when needed, then installs the global
-Codex setup into CODEX_HOME.
+Fetches Superpowers Lite source when needed, then installs or removes the
+native global Codex setup.
 EOF
 }
 
@@ -40,9 +40,9 @@ while [ $# -gt 0 ]; do
             CODEX_HOME_DIR="${2:?missing path for --codex-home}"
             shift 2
             ;;
-        --install-root)
-            INSTALL_ROOT="${2:?missing path for --install-root}"
-            shift 2
+        --uninstall)
+            UNINSTALL=1
+            shift
             ;;
         --help|-h)
             usage
@@ -92,8 +92,11 @@ ensure_checkout() {
 
 SOURCE_ROOT="$(ensure_checkout)"
 
-cmd=("${SOURCE_ROOT}/scripts/install-codex.sh")
+if [ "$UNINSTALL" -eq 1 ]; then
+    cmd=("${SOURCE_ROOT}/scripts/uninstall-codex.sh")
+else
+    cmd=("${SOURCE_ROOT}/scripts/install-codex.sh")
+fi
 [ -n "$CODEX_HOME_DIR" ] && cmd+=(--codex-home "$CODEX_HOME_DIR")
-[ -n "$INSTALL_ROOT" ] && cmd+=(--install-root "$INSTALL_ROOT")
 
-"${cmd[@]}"
+exec "${cmd[@]}"

@@ -2,16 +2,17 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 CODEX_HOME_DIR="${CODEX_HOME:-${HOME}/.codex}"
-INSTALL_ROOT=""
-MARKER_START="<!-- superpowers-lite:start -->"
-MARKER_END="<!-- superpowers-lite:end -->"
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") [--codex-home PATH] [--install-root PATH]
+Usage: $(basename "$0") [--codex-home PATH]
 
-Removes the managed Codex Superpowers Lite installation and AGENTS.md block.
+Removes the native Codex-adapted Superpowers Lite bundle from:
+- CODEX_HOME/AGENTS.md
+- CODEX_HOME/agents
+- \$HOME/.agents/skills
 EOF
 }
 
@@ -19,10 +20,6 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --codex-home)
             CODEX_HOME_DIR="${2:?missing path for --codex-home}"
-            shift 2
-            ;;
-        --install-root)
-            INSTALL_ROOT="${2:?missing path for --install-root}"
             shift 2
             ;;
         --help|-h)
@@ -37,37 +34,14 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-if [ -z "$INSTALL_ROOT" ]; then
-    INSTALL_ROOT="${CODEX_HOME_DIR}/vendor_imports/superpowers-lite"
+if command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN="python3"
+elif command -v python >/dev/null 2>&1; then
+    PYTHON_BIN="python"
+else
+    echo "uninstall-codex.sh: Python 3 is required" >&2
+    exit 1
 fi
 
-if [ -d "${INSTALL_ROOT}/skills" ]; then
-    for skill_dir in "${INSTALL_ROOT}/skills"/*; do
-        [ -e "$skill_dir" ] || continue
-        skill_name="$(basename "$skill_dir")"
-        target="${CODEX_HOME_DIR}/skills/${skill_name}"
-        if [ -L "$target" ]; then
-            existing_target="$(readlink "$target")"
-            case "$existing_target" in
-                "${INSTALL_ROOT}"/*) rm "$target" ;;
-            esac
-        fi
-    done
-fi
-
-global_agents="${CODEX_HOME_DIR}/AGENTS.md"
-if [ -f "$global_agents" ]; then
-    tmp_agents="$(mktemp "${TMPDIR:-/tmp}/superpowers-lite-agents.XXXXXX")"
-    trap 'rm -f "$tmp_agents"' EXIT
-    awk -v start="$MARKER_START" -v end="$MARKER_END" '
-        $0 == start { skip = 1; next }
-        $0 == end { skip = 0; next }
-        !skip { print }
-    ' "$global_agents" > "$tmp_agents"
-    mv "$tmp_agents" "$global_agents"
-fi
-
-rm -rf "$INSTALL_ROOT"
-
-printf 'Removed Codex bundle from %s\n' "$INSTALL_ROOT"
-printf 'Removed managed Superpowers Lite bootstrap block from %s\n' "$global_agents"
+exec "$PYTHON_BIN" "${SCRIPT_DIR}/codex_installer.py" uninstall-global \
+    --codex-home "$CODEX_HOME_DIR"

@@ -9,6 +9,9 @@ This repo keeps the Claude-oriented prompts as the source of truth, then adapts 
 - Claude Code stays plugin-native via `.claude-plugin/`, `hooks/`, and `bootstrap.md`
 - Codex gets a rendered bundle with platform-specific replacements during install
 - `bootstrap.md` is the shared session bootstrap source; Claude hooks read it directly, Codex install injects it into `AGENTS.md`
+- Codex installs into Codex's native filesystem layout:
+  - project scope: `AGENTS.md`, `.agents/skills/`, `.codex/agents/`
+  - user scope: `~/.codex/AGENTS.md`, `~/.agents/skills/`, `~/.codex/agents/`
 
 ### Simplified
 
@@ -61,7 +64,7 @@ If you prefer working from a local clone, clone this repo and install it through
 
 ### Codex
 
-Codex project-local installation creates a dedicated `./.superpowers-lite/codex-home`, installs the rendered Codex bundle there, and creates launchers plus uninstallers in the same folder. It also reuses your existing Codex login/model config from `~/.codex` when available.
+Codex installation now uses Codex's native directory structure. Project-local installation does **not** depend on a custom `CODEX_HOME`; after install, just run `codex` in the project and Codex will pick up the project's `AGENTS.md`, `.agents/skills`, and `.codex/agents`.
 
 Requirements:
 - macOS / Linux: `bash`, `python3`
@@ -73,7 +76,7 @@ macOS / Linux, no-preclone installation:
 ```bash
 cd ~/example_sound
 bash <(curl -fsSL https://raw.githubusercontent.com/FYZAFH/superpowers-lite/main/scripts/bootstrap-codex-project.sh)
-./.superpowers-lite/codex
+codex
 ```
 
 If you want to remove it later:
@@ -87,10 +90,10 @@ macOS / Linux, if you already have a local clone of this repo:
 ```bash
 cd ~/example_sound
 /path/to/superpowers-lite/scripts/install-codex-project.sh
-./.superpowers-lite/codex
+codex
 ```
 
-This creates `./.superpowers-lite/codex-home`, installs the rendered bundle there, creates `./.superpowers-lite/codex` as a launcher, and creates `./.superpowers-lite/uninstall` as a self-contained remover. When `~/.codex/config.toml` or `~/.codex/auth.json` exist, the project-local home links them automatically so you keep your existing Codex login and model settings. In git repos, `.superpowers-lite/` is also added to `.git/info/exclude`.
+This updates the project's root `AGENTS.md` with a managed Superpowers Lite block, installs skills into `.agents/skills/`, installs custom subagents into `.codex/agents/`, and creates `.superpowers-lite/uninstall` as a self-contained remover. In git repos, `.superpowers-lite/` is also added to `.git/info/exclude`.
 
 To remove the project-local installation:
 
@@ -104,7 +107,7 @@ Windows PowerShell, no-preclone installation:
 ```powershell
 cd ~\example_sound
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$tmp = Join-Path $env:TEMP 'bootstrap-codex-project.ps1'; Invoke-RestMethod 'https://raw.githubusercontent.com/FYZAFH/superpowers-lite/main/scripts/bootstrap-codex-project.ps1' -OutFile $tmp; & $tmp"
-.\.superpowers-lite\codex.cmd
+codex
 ```
 
 Shorter version, if you're OK with executing the fetched script directly:
@@ -112,13 +115,13 @@ Shorter version, if you're OK with executing the fetched script directly:
 ```powershell
 cd ~\example_sound
 irm https://raw.githubusercontent.com/FYZAFH/superpowers-lite/main/scripts/bootstrap-codex-project.ps1 | iex
-.\.superpowers-lite\codex.cmd
+codex
 ```
 
 To remove the project-local installation on Windows:
 
 ```powershell
-.\.superpowers-lite\uninstall.cmd
+.\.superpowers-lite\uninstall.ps1
 ```
 
 Windows PowerShell, if you already have a local clone of this repo:
@@ -126,10 +129,10 @@ Windows PowerShell, if you already have a local clone of this repo:
 ```powershell
 cd ~\example_sound
 powershell -NoProfile -ExecutionPolicy Bypass -File C:\path\to\superpowers-lite\scripts\install-codex-project.ps1 -ProjectRoot (Get-Location).Path
-.\.superpowers-lite\codex.cmd
+codex
 ```
 
-The Windows project-local install also creates `codex.ps1`, `uninstall.ps1`, `codex.cmd`, and `uninstall.cmd` alongside the Unix `codex` and `uninstall` helpers.
+The Windows project-local install creates `uninstall.ps1` and `uninstall.cmd` inside `.superpowers-lite/`.
 
 Global installation, shared by all projects:
 
@@ -147,12 +150,21 @@ irm https://raw.githubusercontent.com/FYZAFH/superpowers-lite/main/scripts/boots
 codex
 ```
 
-This installs directly into `${CODEX_HOME:-~/.codex}`, so after it completes you can just run `codex` in any directory.
+This installs directly into Codex's native user-scoped directories:
+- `${CODEX_HOME:-~/.codex}/AGENTS.md`
+- `${CODEX_HOME:-~/.codex}/agents/`
+- `~/.agents/skills/`
+
+After it completes you can just run `codex` in any directory.
 
 If you want to remove the global installation later:
 
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/FYZAFH/superpowers-lite/main/scripts/bootstrap-codex-global.sh) --uninstall
+```
+
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$tmp = Join-Path $env:TEMP 'uninstall-codex.ps1'; Invoke-RestMethod 'https://raw.githubusercontent.com/FYZAFH/superpowers-lite/main/scripts/uninstall-codex.ps1' -OutFile $tmp; & $tmp"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$tmp = Join-Path $env:TEMP 'bootstrap-codex-global.ps1'; Invoke-RestMethod 'https://raw.githubusercontent.com/FYZAFH/superpowers-lite/main/scripts/bootstrap-codex-global.ps1' -OutFile $tmp; & $tmp -Uninstall"
 ```
 
 If you prefer a local clone, use:
@@ -163,7 +175,7 @@ cd superpowers-lite
 ./scripts/install-codex.sh
 ```
 
-By default this installs the rendered Codex bundle under `${CODEX_HOME:-~/.codex}/vendor_imports/superpowers-lite`, links the skills into `${CODEX_HOME:-~/.codex}/skills`, and updates `${CODEX_HOME:-~/.codex}/AGENTS.md` with a managed block.
+By default this updates `${CODEX_HOME:-~/.codex}/AGENTS.md`, installs custom subagents into `${CODEX_HOME:-~/.codex}/agents`, and installs skills into `~/.agents/skills`.
 
 To remove the Codex installation:
 
@@ -190,6 +202,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\uninstall-codex.ps
 ./scripts/render-bootstrap.sh
 python3 ./scripts/render-platform-bundle.py --platform codex --output /tmp/superpowers-codex
 ```
+
+The rendered Codex bundle contains:
+- `AGENTS.md`
+- `.agents/skills/...`
+- `.codex/agents/*.toml`
 
 ## Skills
 

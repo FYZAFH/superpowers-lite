@@ -1,6 +1,5 @@
 param(
-    [string]$CodexHome,
-    [string]$InstallRoot
+    [string]$CodexHome
 )
 
 $ErrorActionPreference = 'Stop'
@@ -21,9 +20,6 @@ if (Get-Command py -ErrorAction SilentlyContinue) {
 $Arguments = @($Installer, 'install-global', '--repo-root', $RepoRoot)
 if ($CodexHome) {
     $Arguments += @('--codex-home', $CodexHome)
-}
-if ($InstallRoot) {
-    $Arguments += @('--install-root', $InstallRoot)
 }
 
 $PythonArgs = @()

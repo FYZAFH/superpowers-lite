@@ -7,50 +7,48 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 TEST_ROOT="$(mktemp -d /tmp/superpowers-lite-codex-project.XXXXXX)"
 trap 'rm -rf "$TEST_ROOT"' EXIT
 
-TEST_HOME="${TEST_ROOT}/home"
 PROJECT_ROOT="${TEST_ROOT}/example_sound"
-FAKE_BIN="${TEST_ROOT}/bin"
-mkdir -p "${TEST_HOME}/.codex" "$PROJECT_ROOT" "$FAKE_BIN"
-
-cat > "${TEST_HOME}/.codex/config.toml" <<'EOF'
-model_provider = "test"
-EOF
-
-cat > "${TEST_HOME}/.codex/auth.json" <<'EOF'
-{"token":"test"}
-EOF
-
-cat > "${FAKE_BIN}/codex" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-printf 'PWD=%s\n' "$PWD"
-printf 'CODEX_HOME=%s\n' "${CODEX_HOME:-}"
-printf 'ARGS=%s\n' "$*"
-EOF
-chmod +x "${FAKE_BIN}/codex"
+mkdir -p "$PROJECT_ROOT"
 
 git -C "$PROJECT_ROOT" init >/dev/null 2>&1
+cat > "${PROJECT_ROOT}/AGENTS.md" <<'EOF'
+Keep this line.
+EOF
 
-HOME="$TEST_HOME" PATH="${FAKE_BIN}:$PATH" "${REPO_ROOT}/scripts/install-codex-project.sh" --project-root "$PROJECT_ROOT"
+"${REPO_ROOT}/scripts/install-codex-project.sh" --project-root "$PROJECT_ROOT"
 
-test -x "${PROJECT_ROOT}/.superpowers-lite/codex"
+test -f "${PROJECT_ROOT}/AGENTS.md"
+grep -q "Keep this line." "${PROJECT_ROOT}/AGENTS.md"
+grep -q "<!-- superpowers-lite:start -->" "${PROJECT_ROOT}/AGENTS.md"
+test -d "${PROJECT_ROOT}/.agents/skills/brainstorming"
+test -d "${PROJECT_ROOT}/.agents/skills/code-review"
+grep -qx 'superpowers-lite' "${PROJECT_ROOT}/.agents/skills/brainstorming/.superpowers-lite-owner"
+test -f "${PROJECT_ROOT}/.codex/agents/implementer.toml"
+test -f "${PROJECT_ROOT}/.codex/agents/spec-reviewer.toml"
 test -x "${PROJECT_ROOT}/.superpowers-lite/uninstall"
-test -L "${PROJECT_ROOT}/.superpowers-lite/codex-home/config.toml"
-test -L "${PROJECT_ROOT}/.superpowers-lite/codex-home/auth.json"
-test -f "${PROJECT_ROOT}/.superpowers-lite/codex-home/AGENTS.md"
-grep -q "Codex's native skills system" "${PROJECT_ROOT}/.superpowers-lite/codex-home/AGENTS.md"
-grep -q "${PROJECT_ROOT}/.superpowers-lite/codex-home/vendor_imports/superpowers-lite/agents/implementer.md" \
-    "${PROJECT_ROOT}/.superpowers-lite/codex-home/vendor_imports/superpowers-lite/skills/subagent-driven-development/SKILL.md"
+test -f "${PROJECT_ROOT}/.superpowers-lite/uninstall.cmd"
+test -f "${PROJECT_ROOT}/.superpowers-lite/uninstall.ps1"
 grep -q "# superpowers-lite:start" "${PROJECT_ROOT}/.git/info/exclude"
 grep -q ".superpowers-lite/" "${PROJECT_ROOT}/.git/info/exclude"
 
-launcher_output="$(PATH="${FAKE_BIN}:$PATH" "${PROJECT_ROOT}/.superpowers-lite/codex" hello world)"
-printf '%s\n' "$launcher_output" | grep -q "^PWD=${PROJECT_ROOT}\$"
-printf '%s\n' "$launcher_output" | grep -q "^CODEX_HOME=${PROJECT_ROOT}/.superpowers-lite/codex-home\$"
-printf '%s\n' "$launcher_output" | grep -q "^ARGS=hello world\$"
-
 generated_uninstall_output="$("${PROJECT_ROOT}/.superpowers-lite/uninstall" 2>&1)"
-printf '%s\n' "$generated_uninstall_output" | grep -q "Removing project-local Superpowers Lite"
+printf '%s\n' "$generated_uninstall_output" | grep -q "Removing project-local Superpowers Lite helpers"
+
+if [ -e "${PROJECT_ROOT}/.agents/skills/brainstorming" ]; then
+    echo "brainstorming skill still exists after generated uninstall" >&2
+    exit 1
+fi
+
+if [ -e "${PROJECT_ROOT}/.codex/agents/implementer.toml" ]; then
+    echo "implementer subagent still exists after generated uninstall" >&2
+    exit 1
+fi
+
+grep -q "Keep this line." "${PROJECT_ROOT}/AGENTS.md"
+if grep -q "superpowers-lite:start" "${PROJECT_ROOT}/AGENTS.md"; then
+    echo "managed AGENTS block still exists after generated uninstall" >&2
+    exit 1
+fi
 
 if [ -e "${PROJECT_ROOT}/.superpowers-lite" ]; then
     echo ".superpowers-lite still exists after generated uninstall" >&2
@@ -62,12 +60,26 @@ if grep -q "superpowers-lite:start" "${PROJECT_ROOT}/.git/info/exclude"; then
     exit 1
 fi
 
-HOME="$TEST_HOME" PATH="${FAKE_BIN}:$PATH" "${REPO_ROOT}/scripts/install-codex-project.sh" --project-root "$PROJECT_ROOT"
+"${REPO_ROOT}/scripts/install-codex-project.sh" --project-root "$PROJECT_ROOT"
+"${REPO_ROOT}/scripts/uninstall-codex-project.sh" --project-root "$PROJECT_ROOT"
 
-HOME="$TEST_HOME" "${REPO_ROOT}/scripts/uninstall-codex-project.sh" --project-root "$PROJECT_ROOT"
+if [ -e "${PROJECT_ROOT}/.agents/skills/brainstorming" ]; then
+    echo "brainstorming skill still exists after uninstall" >&2
+    exit 1
+fi
+
+if [ -e "${PROJECT_ROOT}/.codex/agents/implementer.toml" ]; then
+    echo "implementer subagent still exists after uninstall" >&2
+    exit 1
+fi
 
 if [ -e "${PROJECT_ROOT}/.superpowers-lite" ]; then
     echo ".superpowers-lite still exists after uninstall" >&2
+    exit 1
+fi
+
+if grep -q "superpowers-lite:start" "${PROJECT_ROOT}/AGENTS.md"; then
+    echo "managed AGENTS block still exists after uninstall" >&2
     exit 1
 fi
 

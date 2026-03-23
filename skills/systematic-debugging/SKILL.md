@@ -284,7 +284,7 @@ These techniques are part of systematic debugging and available in this director
 - **`condition-based-waiting.md`** - Replace arbitrary timeouts with condition polling
 
 **Related skills:**
-- **superpowers:verification-before-completion** - Verify fix worked before claiming success
+- **superpowers-lite:verification-before-completion** - Verify fix worked before claiming success
 
 ## Real-World Impact
 

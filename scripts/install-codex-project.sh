@@ -6,20 +6,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 PROJECT_ROOT="$(pwd)"
 ARTIFACT_ROOT=""
-CODEX_HOME_DIR=""
-LAUNCHER_PATH=""
-UNINSTALLER_PATH=""
-GLOBAL_CODEX_HOME="${HOME}/.codex"
-INHERIT_GLOBAL_CONFIG=1
-EXCLUDE_MARKER_START="# superpowers-lite:start"
-EXCLUDE_MARKER_END="# superpowers-lite:end"
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") [--project-root PATH] [--artifact-root PATH] [--codex-home PATH] [--launcher PATH] [--uninstaller PATH] [--global-codex-home PATH] [--no-inherit-global-config]
+Usage: $(basename "$0") [--project-root PATH] [--artifact-root PATH]
 
-Installs a project-local Codex home for Superpowers Lite in the target
-project and creates local helper scripts for starting and removing that setup.
+Installs the native project-scoped Codex adaptation into the target project:
+- updates PROJECT_ROOT/AGENTS.md
+- installs custom subagents into PROJECT_ROOT/.codex/agents
+- installs custom skills into PROJECT_ROOT/.agents/skills
+- creates uninstall helpers in PROJECT_ROOT/.superpowers-lite
 EOF
 }
 
@@ -33,26 +29,6 @@ while [ $# -gt 0 ]; do
             ARTIFACT_ROOT="${2:?missing path for --artifact-root}"
             shift 2
             ;;
-        --codex-home)
-            CODEX_HOME_DIR="${2:?missing path for --codex-home}"
-            shift 2
-            ;;
-        --launcher)
-            LAUNCHER_PATH="${2:?missing path for --launcher}"
-            shift 2
-            ;;
-        --uninstaller)
-            UNINSTALLER_PATH="${2:?missing path for --uninstaller}"
-            shift 2
-            ;;
-        --global-codex-home)
-            GLOBAL_CODEX_HOME="${2:?missing path for --global-codex-home}"
-            shift 2
-            ;;
-        --no-inherit-global-config)
-            INHERIT_GLOBAL_CONFIG=0
-            shift
-            ;;
         --help|-h)
             usage
             exit 0
@@ -65,151 +41,22 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-PROJECT_ROOT="$(cd "$PROJECT_ROOT" && pwd)"
-if [ -z "$ARTIFACT_ROOT" ]; then
-    ARTIFACT_ROOT="${PROJECT_ROOT}/.superpowers-lite"
-fi
-if [ -z "$CODEX_HOME_DIR" ]; then
-    CODEX_HOME_DIR="${ARTIFACT_ROOT}/codex-home"
-fi
-if [ -z "$LAUNCHER_PATH" ]; then
-    LAUNCHER_PATH="${ARTIFACT_ROOT}/codex"
-fi
-if [ -z "$UNINSTALLER_PATH" ]; then
-    UNINSTALLER_PATH="${ARTIFACT_ROOT}/uninstall"
+if command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN="python3"
+elif command -v python >/dev/null 2>&1; then
+    PYTHON_BIN="python"
+else
+    echo "install-codex-project.sh: Python 3 is required" >&2
+    exit 1
 fi
 
-mkdir -p "$ARTIFACT_ROOT"
-mkdir -p "$CODEX_HOME_DIR"
-mkdir -p "$(dirname "$LAUNCHER_PATH")"
-mkdir -p "$(dirname "$UNINSTALLER_PATH")"
+cmd=(
+    "$PYTHON_BIN"
+    "${SCRIPT_DIR}/codex_installer.py"
+    install-project
+    --repo-root "$REPO_ROOT"
+    --project-root "$PROJECT_ROOT"
+)
+[ -n "$ARTIFACT_ROOT" ] && cmd+=(--artifact-root "$ARTIFACT_ROOT")
 
-link_global_entry() {
-    local name="$1"
-    local src="${GLOBAL_CODEX_HOME}/${name}"
-    local dst="${CODEX_HOME_DIR}/${name}"
-
-    if [ ! -e "$src" ] && [ ! -L "$src" ]; then
-        return 0
-    fi
-
-    mkdir -p "$(dirname "$dst")"
-
-    if [ -L "$dst" ] && [ "$(readlink "$dst")" = "$src" ]; then
-        return 0
-    fi
-
-    if [ -e "$dst" ] || [ -L "$dst" ]; then
-        printf 'Keeping existing project-local %s\n' "$dst"
-        return 0
-    fi
-
-    ln -s "$src" "$dst"
-}
-
-ensure_git_exclude() {
-    if [ "$ARTIFACT_ROOT" != "${PROJECT_ROOT}/.superpowers-lite" ]; then
-        return 0
-    fi
-
-    if ! git -C "$PROJECT_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        return 0
-    fi
-
-    local exclude_file
-    exclude_file="$(cd "$PROJECT_ROOT" && git rev-parse --git-path info/exclude)"
-    case "$exclude_file" in
-        /*) ;;
-        *) exclude_file="${PROJECT_ROOT}/${exclude_file}" ;;
-    esac
-    mkdir -p "$(dirname "$exclude_file")"
-    touch "$exclude_file"
-
-    if grep -Fxq "$EXCLUDE_MARKER_START" "$exclude_file"; then
-        return 0
-    fi
-
-    {
-        printf '\n%s\n' "$EXCLUDE_MARKER_START"
-        printf '.superpowers-lite/\n'
-        printf '%s\n' "$EXCLUDE_MARKER_END"
-    } >> "$exclude_file"
-}
-
-if [ "$INHERIT_GLOBAL_CONFIG" -eq 1 ]; then
-    link_global_entry "config.toml"
-    link_global_entry "auth.json"
-fi
-
-"${REPO_ROOT}/scripts/install-codex.sh" --codex-home "$CODEX_HOME_DIR"
-
-{
-    printf '#!/usr/bin/env bash\n\n'
-    printf 'set -euo pipefail\n\n'
-    printf 'PROJECT_ROOT=%q\n' "$PROJECT_ROOT"
-    printf 'CODEX_HOME=%q\n' "$CODEX_HOME_DIR"
-    cat <<'EOF'
-
-cd "$PROJECT_ROOT"
-export CODEX_HOME
-CODEX_BIN="${CODEX_BIN:-codex}"
-
-if ! command -v "$CODEX_BIN" >/dev/null 2>&1; then
-    printf 'superpowers-lite launcher: command not found: %s\n' "$CODEX_BIN" >&2
-    exit 127
-fi
-
-exec "$CODEX_BIN" "$@"
-EOF
-} > "$LAUNCHER_PATH"
-
-chmod +x "$LAUNCHER_PATH"
-
-{
-    printf '#!/usr/bin/env bash\n\n'
-    printf 'set -euo pipefail\n\n'
-    printf 'PROJECT_ROOT=%q\n' "$PROJECT_ROOT"
-    printf 'ARTIFACT_ROOT=%q\n' "$ARTIFACT_ROOT"
-    printf 'EXCLUDE_MARKER_START=%q\n' "$EXCLUDE_MARKER_START"
-    printf 'EXCLUDE_MARKER_END=%q\n' "$EXCLUDE_MARKER_END"
-    cat <<'EOF'
-
-remove_git_exclude() {
-    if ! git -C "$PROJECT_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        return 0
-    fi
-
-    local exclude_file
-    local tmp_file
-    exclude_file="$(cd "$PROJECT_ROOT" && git rev-parse --git-path info/exclude)"
-    case "$exclude_file" in
-        /*) ;;
-        *) exclude_file="${PROJECT_ROOT}/${exclude_file}" ;;
-    esac
-
-    if [ ! -f "$exclude_file" ]; then
-        return 0
-    fi
-
-    tmp_file="$(mktemp "${TMPDIR:-/tmp}/superpowers-lite-exclude.XXXXXX")"
-    awk -v start="$EXCLUDE_MARKER_START" -v end="$EXCLUDE_MARKER_END" '
-        $0 == start { skip = 1; next }
-        $0 == end { skip = 0; next }
-        !skip { print }
-    ' "$exclude_file" > "$tmp_file"
-    mv "$tmp_file" "$exclude_file"
-}
-
-remove_git_exclude
-printf 'Removing project-local Superpowers Lite from %s\n' "$ARTIFACT_ROOT"
-exec /bin/sh -c 'rm -rf "$1"' sh "$ARTIFACT_ROOT"
-EOF
-} > "$UNINSTALLER_PATH"
-
-chmod +x "$UNINSTALLER_PATH"
-ensure_git_exclude
-
-printf 'Installed project-local Codex home to %s\n' "$CODEX_HOME_DIR"
-printf 'Created launcher at %s\n' "$LAUNCHER_PATH"
-printf 'Created uninstaller at %s\n' "$UNINSTALLER_PATH"
-printf 'Start Codex for this project with: %s\n' "$LAUNCHER_PATH"
+exec "${cmd[@]}"

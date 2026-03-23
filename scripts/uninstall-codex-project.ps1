@@ -1,8 +1,6 @@
 param(
     [string]$ProjectRoot = (Get-Location).Path,
-    [string]$ArtifactRoot,
-    [string]$CodexHome,
-    [string]$InstallRoot
+    [string]$ArtifactRoot
 )
 
 $ErrorActionPreference = 'Stop'
@@ -28,12 +26,6 @@ $Arguments = @(
 
 if ($ArtifactRoot) {
     $Arguments += @('--artifact-root', $ArtifactRoot)
-}
-if ($CodexHome) {
-    $Arguments += @('--codex-home', $CodexHome)
-}
-if ($InstallRoot) {
-    $Arguments += @('--install-root', $InstallRoot)
 }
 
 $PythonArgs = @()

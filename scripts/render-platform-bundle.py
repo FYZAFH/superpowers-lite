@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 from pathlib import Path
+
+
+CUSTOM_AGENT_MARKER = "# superpowers-lite:managed"
 
 
 def replace_or_die(text: str, old: str, new: str, relpath: str) -> str:
@@ -20,12 +24,7 @@ def replace_any_or_die(text: str, olds: list[str], new: str, relpath: str) -> st
     raise ValueError(f"Missing expected text in {relpath!r}: one of {olds!r}")
 
 
-def codex_replacements(logical_root: Path) -> dict[str, list[tuple[str | list[str], str]]]:
-    agents_root = (logical_root / "agents").resolve()
-    implementer_path = (agents_root / "implementer.md").as_posix()
-    spec_reviewer_path = (agents_root / "spec-reviewer.md").as_posix()
-    code_reviewer_path = (agents_root / "code-reviewer.md").as_posix()
-
+def codex_replacements() -> dict[str, list[tuple[str | list[str], str]]]:
     return {
         "bootstrap.md": [
             (
@@ -60,7 +59,7 @@ def codex_replacements(logical_root: Path) -> dict[str, list[tuple[str | list[st
             ),
             (
                 "Three agent types, dispatched by name via the Agent tool:",
-                "Three agent roles, dispatched via `spawn_agent` using the matching instructions file:",
+                "Three custom subagents, dispatched by name via `spawn_agent`:",
             ),
             (
                 "```\nAgent tool:\n  subagent_type: implementer\n  prompt: |\n"
@@ -70,8 +69,7 @@ def codex_replacements(logical_root: Path) -> dict[str, list[tuple[str | list[st
                 "    Work from: .worktrees/feature-auth\n\n"
                 "    Context: This builds on the session middleware from Task 2.\n"
                 "    The database schema is already in place (see db/schema.ts).\n```",
-                "```\nspawn_agent:\n  agent_type: worker\n  fork_context: false\n  message: |\n"
-                f"    Follow the instructions in {implementer_path}.\n\n"
+                "```\nspawn_agent:\n  agent_type: implementer\n  fork_context: false\n  message: |\n"
                 "    Task 3: Implement user authentication endpoint\n\n"
                 "    Spec: docs/superpowers/specs/auth-spec.md\n"
                 "    Plan: docs/superpowers/plans/auth-plan.md\n"
@@ -86,8 +84,7 @@ def codex_replacements(logical_root: Path) -> dict[str, list[tuple[str | list[st
                 "    Plan: docs/superpowers/plans/auth-plan.md\n"
                 "    Base: abc1234\n"
                 "    Head: def5678\n```",
-                "```\nspawn_agent:\n  agent_type: explorer\n  fork_context: false\n  message: |\n"
-                f"    Follow the instructions in {spec_reviewer_path}.\n\n"
+                "```\nspawn_agent:\n  agent_type: spec-reviewer\n  fork_context: false\n  message: |\n"
                 "    Review Task 3: user authentication endpoint\n\n"
                 "    Spec: docs/superpowers/specs/auth-spec.md\n"
                 "    Plan: docs/superpowers/plans/auth-plan.md\n"
@@ -106,7 +103,7 @@ def codex_replacements(logical_root: Path) -> dict[str, list[tuple[str | list[st
         "skills/code-review/SKILL.md": [
             (
                 "Dispatch each reviewer as a subagent with the spec/plan paths and git range:",
-                "Dispatch each reviewer as a subagent via `spawn_agent`, loading the matching instructions file plus the spec/plan paths and git range:",
+                "Dispatch each reviewer as a subagent via `spawn_agent`, using the matching custom subagent plus the spec/plan paths and git range:",
             ),
             (
                 "```\nAgent tool:\n  subagent_type: spec-reviewer\n  prompt: |\n"
@@ -115,8 +112,7 @@ def codex_replacements(logical_root: Path) -> dict[str, list[tuple[str | list[st
                 "    Plan: [path to plan]\n"
                 "    Base: [base SHA]\n"
                 "    Head: [head SHA]\n```",
-                "```\nspawn_agent:\n  agent_type: explorer\n  fork_context: false\n  message: |\n"
-                f"    Follow the instructions in {spec_reviewer_path}.\n\n"
+                "```\nspawn_agent:\n  agent_type: spec-reviewer\n  fork_context: false\n  message: |\n"
                 "    Review: [task description]\n"
                 "    Spec: [path to spec]\n"
                 "    Plan: [path to plan]\n"
@@ -130,8 +126,7 @@ def codex_replacements(logical_root: Path) -> dict[str, list[tuple[str | list[st
                 "    Plan: [path to plan]\n"
                 "    Base: [base SHA]\n"
                 "    Head: [head SHA]\n```",
-                "```\nspawn_agent:\n  agent_type: explorer\n  fork_context: false\n  message: |\n"
-                f"    Follow the instructions in {code_reviewer_path}.\n\n"
+                "```\nspawn_agent:\n  agent_type: code-reviewer\n  fork_context: false\n  message: |\n"
                 "    Review: [task description]\n"
                 "    Spec: [path to spec]\n"
                 "    Plan: [path to plan]\n"
@@ -187,11 +182,11 @@ def codex_replacements(logical_root: Path) -> dict[str, list[tuple[str | list[st
     }
 
 
-def render_text(text: str, relpath: str, platform: str, logical_root: Path) -> str:
+def render_text(text: str, relpath: str, platform: str) -> str:
     if platform != "codex":
         return text
 
-    replacements = codex_replacements(logical_root).get(relpath, [])
+    replacements = codex_replacements().get(relpath, [])
     for old, new in replacements:
         if isinstance(old, list):
             text = replace_any_or_die(text, old, new, relpath)
@@ -200,7 +195,79 @@ def render_text(text: str, relpath: str, platform: str, logical_root: Path) -> s
     return text
 
 
-def copy_tree(src_root: Path, dst_root: Path, platform: str, logical_root: Path) -> None:
+def parse_front_matter(text: str) -> tuple[dict[str, str], str]:
+    lines = text.splitlines()
+    if not lines or lines[0] != "---":
+        return {}, text
+
+    end_index = None
+    for index in range(1, len(lines)):
+        if lines[index] == "---":
+            end_index = index
+            break
+
+    if end_index is None:
+        return {}, text
+
+    metadata: dict[str, str] = {}
+    front_lines = lines[1:end_index]
+    body = "\n".join(lines[end_index + 1 :]).lstrip("\n")
+
+    index = 0
+    while index < len(front_lines):
+        line = front_lines[index]
+        if not line.strip():
+            index += 1
+            continue
+
+        if line.endswith(": |"):
+            key = line.split(":", 1)[0].strip()
+            index += 1
+            block: list[str] = []
+            while index < len(front_lines):
+                next_line = front_lines[index]
+                if next_line.startswith("  "):
+                    block.append(next_line[2:])
+                    index += 1
+                    continue
+                if next_line == "":
+                    block.append("")
+                    index += 1
+                    continue
+                break
+            metadata[key] = "\n".join(block).rstrip()
+            continue
+
+        if ":" in line:
+            key, value = line.split(":", 1)
+            metadata[key.strip()] = value.strip().strip('"').strip("'")
+
+        index += 1
+
+    return metadata, body
+
+
+def render_codex_agent(source_path: Path, output_path: Path) -> None:
+    metadata, body = parse_front_matter(source_path.read_text())
+    name = metadata.get("name", source_path.stem)
+    description = " ".join(metadata.get("description", "").split())
+    if not description:
+        description = f"Superpowers Lite custom subagent: {name}"
+
+    content = "\n".join(
+        [
+            CUSTOM_AGENT_MARKER,
+            f"name = {json.dumps(name)}",
+            f"description = {json.dumps(description)}",
+            f"developer_instructions = {json.dumps(body.strip())}",
+            "",
+        ]
+    )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(content)
+
+
+def copy_tree(src_root: Path, dst_root: Path, platform: str) -> None:
     for src_path in sorted(src_root.rglob("*")):
         relpath = src_path.relative_to(src_root)
         dst_path = dst_root / relpath
@@ -212,26 +279,40 @@ def copy_tree(src_root: Path, dst_root: Path, platform: str, logical_root: Path)
         dst_path.parent.mkdir(parents=True, exist_ok=True)
         if src_path.suffix == ".md":
             rel_text_path = src_path.relative_to(REPO_ROOT).as_posix()
-            rendered = render_text(src_path.read_text(), rel_text_path, platform, logical_root)
+            rendered = render_text(src_path.read_text(), rel_text_path, platform)
             dst_path.write_text(rendered)
         else:
             shutil.copy2(src_path, dst_path)
 
 
+def render_codex_bundle(output_dir: Path) -> None:
+    copy_tree(REPO_ROOT / "skills", output_dir / ".agents" / "skills", "codex")
+
+    agents_root = output_dir / ".codex" / "agents"
+    for agent_path in sorted((REPO_ROOT / "agents").glob("*.md")):
+        render_codex_agent(agent_path, agents_root / f"{agent_path.stem}.toml")
+
+    bootstrap = (REPO_ROOT / "bootstrap.md").read_text()
+    rendered_bootstrap = render_text(bootstrap, "bootstrap.md", "codex")
+    (output_dir / "AGENTS.md").write_text(rendered_bootstrap)
+
+
 def render_bundle(platform: str, output_dir: Path, logical_root: Path | None = None) -> None:
+    del logical_root
+
     if output_dir.exists():
         shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True)
-    if logical_root is None:
-        logical_root = output_dir
 
-    copy_tree(REPO_ROOT / "skills", output_dir / "skills", platform, logical_root)
-    copy_tree(REPO_ROOT / "agents", output_dir / "agents", platform, logical_root)
+    if platform == "codex":
+        render_codex_bundle(output_dir)
+        return
+
+    copy_tree(REPO_ROOT / "skills", output_dir / "skills", platform)
+    copy_tree(REPO_ROOT / "agents", output_dir / "agents", platform)
 
     bootstrap = (REPO_ROOT / "bootstrap.md").read_text()
-    rendered_bootstrap = render_text(bootstrap, "bootstrap.md", platform, logical_root)
-    bootstrap_name = "bootstrap.md" if platform == "claude" else "AGENTS.md"
-    (output_dir / bootstrap_name).write_text(rendered_bootstrap)
+    (output_dir / "bootstrap.md").write_text(bootstrap)
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
