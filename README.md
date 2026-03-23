@@ -1,14 +1,18 @@
 # Superpowers Lite
 
-A simplified fork of [superpowers](https://github.com/obra/superpowers), focused on **Claude Code only** with a **serial execution** workflow.
+A shared-source fork of [superpowers](https://github.com/obra/superpowers), with **direct Claude Code plugin installation** and **install-time Codex adaptation** for the same serial workflow.
 
-## What Changed (and Why)
+## Repository Model
 
-This fork strips superpowers down to its essential serial happy path for Claude Code. The original supports multiple platforms (Gemini CLI, Codex, OpenCode, Cursor) and multiple execution strategies. This version makes opinionated choices so the agent has fewer decisions and more focus.
+This repo keeps the Claude-oriented prompts as the source of truth, then adapts file names and tool names at render/install time for Codex. The workflow itself stays the same on both platforms.
 
-### Removed
+- Claude Code stays plugin-native via `.claude-plugin/`, `hooks/`, and `bootstrap.md`
+- Codex gets a rendered bundle with platform-specific replacements during install
+- `bootstrap.md` is the shared session bootstrap source; Claude hooks read it directly, Codex install injects it into `AGENTS.md`
 
-- **Multi-platform support** — Codex, OpenCode, Cursor, Gemini CLI configs and docs. Claude Code only.
+### Simplified
+
+- **Single workflow** — one serial happy path: brainstorm → plan → implement via subagents → finish
 - **`dispatching-parallel-agents`** — Claude Code natively supports parallel dispatch via the Agent tool. A skill standardizing it added weight without value.
 - **`executing-plans`** — The "no subagent" fallback for platforms that can't dispatch agents. With Claude Code, subagent-driven-development is always available.
 - **`requesting-code-review` / `receiving-code-review`** (as separate skills) — Merged into a single `code-review` skill. You never dispatch a reviewer without evaluating results.
@@ -40,18 +44,127 @@ brainstorming → writing-plans → subagent-driven-development → finishing-a-
 
 ## Installation
 
-### Claude Code (Plugin Marketplace)
+### Claude Code (Plugin System)
+
+This repository still ships a first-class Claude Code plugin:
+- `.claude-plugin/plugin.json`
+- `.claude-plugin/marketplace.json`
+- `hooks/hooks.json`
+
+If your Claude Code environment can install from the plugin marketplace:
 
 ```bash
 /plugin install superpowers-lite
 ```
 
-### Manual
+If you prefer working from a local clone, clone this repo and install it through Claude Code's plugin system as a local plugin.
 
-Clone this repo and add it as a local plugin:
+### Codex
+
+Codex project-local installation creates a dedicated `./.superpowers-lite/codex-home`, installs the rendered Codex bundle there, and creates launchers plus uninstallers in the same folder. It also reuses your existing Codex login/model config from `~/.codex` when available.
+
+Requirements:
+- macOS / Linux: `bash`, `python3`
+- Windows: `PowerShell`, `Python 3`
+- No-preclone bootstrap flows also require `git`
+
+macOS / Linux, no-preclone installation:
+
+```bash
+cd ~/example_sound
+bash <(curl -fsSL https://raw.githubusercontent.com/FYZAFH/superpowers-lite/main/scripts/bootstrap-codex-project.sh)
+./.superpowers-lite/codex
+```
+
+If you want to remove it later:
+
+```bash
+./.superpowers-lite/uninstall
+```
+
+macOS / Linux, if you already have a local clone of this repo:
+
+```bash
+cd ~/example_sound
+/path/to/superpowers-lite/scripts/install-codex-project.sh
+./.superpowers-lite/codex
+```
+
+This creates `./.superpowers-lite/codex-home`, installs the rendered bundle there, creates `./.superpowers-lite/codex` as a launcher, and creates `./.superpowers-lite/uninstall` as a self-contained remover. When `~/.codex/config.toml` or `~/.codex/auth.json` exist, the project-local home links them automatically so you keep your existing Codex login and model settings. In git repos, `.superpowers-lite/` is also added to `.git/info/exclude`.
+
+To remove the project-local installation:
+
+```bash
+cd ~/example_sound
+/path/to/superpowers-lite/scripts/uninstall-codex-project.sh
+```
+
+Windows PowerShell, no-preclone installation:
+
+```powershell
+cd ~\example_sound
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$tmp = Join-Path $env:TEMP 'bootstrap-codex-project.ps1'; Invoke-RestMethod 'https://raw.githubusercontent.com/FYZAFH/superpowers-lite/main/scripts/bootstrap-codex-project.ps1' -OutFile $tmp; & $tmp"
+.\.superpowers-lite\codex.cmd
+```
+
+Shorter version, if you're OK with executing the fetched script directly:
+
+```powershell
+cd ~\example_sound
+irm https://raw.githubusercontent.com/FYZAFH/superpowers-lite/main/scripts/bootstrap-codex-project.ps1 | iex
+.\.superpowers-lite\codex.cmd
+```
+
+To remove the project-local installation on Windows:
+
+```powershell
+.\.superpowers-lite\uninstall.cmd
+```
+
+Windows PowerShell, if you already have a local clone of this repo:
+
+```powershell
+cd ~\example_sound
+powershell -NoProfile -ExecutionPolicy Bypass -File C:\path\to\superpowers-lite\scripts\install-codex-project.ps1 -ProjectRoot (Get-Location).Path
+.\.superpowers-lite\codex.cmd
+```
+
+The Windows project-local install also creates `codex.ps1`, `uninstall.ps1`, `codex.cmd`, and `uninstall.cmd` alongside the Unix `codex` and `uninstall` helpers.
+
+Global installation, shared by all projects:
 
 ```bash
 git clone https://github.com/FYZAFH/superpowers-lite.git
+cd superpowers-lite
+./scripts/install-codex.sh
+```
+
+By default this installs the rendered Codex bundle under `${CODEX_HOME:-~/.codex}/vendor_imports/superpowers-lite`, links the skills into `${CODEX_HOME:-~/.codex}/skills`, and updates `${CODEX_HOME:-~/.codex}/AGENTS.md` with a managed block.
+
+To remove the Codex installation:
+
+```bash
+./scripts/uninstall-codex.sh
+```
+
+Windows global installation from a local clone:
+
+```powershell
+cd C:\path\to\superpowers-lite
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-codex.ps1
+```
+
+To remove the Windows global installation:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\uninstall-codex.ps1
+```
+
+### Development Utilities
+
+```bash
+./scripts/render-bootstrap.sh
+python3 ./scripts/render-platform-bundle.py --platform codex --output /tmp/superpowers-codex
 ```
 
 ## Skills

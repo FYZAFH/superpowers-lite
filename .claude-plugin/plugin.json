@@ -1,7 +1,7 @@
 {
   "name": "superpowers-lite",
   "description": "Streamlined skills library for Claude Code: serial happy path with TDD, debugging, subagent-driven development, and proven techniques",
-  "version": "6.0.0",
+  "version": "6.0.1",
   "author": {
     "name": "FYZAFH"
   },
