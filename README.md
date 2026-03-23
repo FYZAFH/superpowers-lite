@@ -133,6 +133,30 @@ The Windows project-local install also creates `codex.ps1`, `uninstall.ps1`, `co
 
 Global installation, shared by all projects:
 
+macOS / Linux, no-preclone global installation:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/FYZAFH/superpowers-lite/main/scripts/bootstrap-codex-global.sh)
+codex
+```
+
+Windows PowerShell, no-preclone global installation:
+
+```powershell
+irm https://raw.githubusercontent.com/FYZAFH/superpowers-lite/main/scripts/bootstrap-codex-global.ps1 | iex
+codex
+```
+
+This installs directly into `${CODEX_HOME:-~/.codex}`, so after it completes you can just run `codex` in any directory.
+
+If you want to remove the global installation later:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$tmp = Join-Path $env:TEMP 'uninstall-codex.ps1'; Invoke-RestMethod 'https://raw.githubusercontent.com/FYZAFH/superpowers-lite/main/scripts/uninstall-codex.ps1' -OutFile $tmp; & $tmp"
+```
+
+If you prefer a local clone, use:
+
 ```bash
 git clone https://github.com/FYZAFH/superpowers-lite.git
 cd superpowers-lite

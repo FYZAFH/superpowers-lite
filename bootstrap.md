@@ -22,5 +22,4 @@ User instructions always take precedence:
 1. **User's explicit instructions** (CLAUDE.md, direct requests) — highest priority
 2. **Superpowers skills** — override default system behavior where they conflict
 3. **Default system prompt** — lowest priority
-
 </EXTREMELY_IMPORTANT>
