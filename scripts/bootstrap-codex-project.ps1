@@ -77,12 +77,11 @@ if ($SourceRepo) {
 }
 
 $Installer = Join-Path $SourceRoot 'scripts\install-codex-project.ps1'
-$Arguments = @('-ProjectRoot', $ProjectRoot)
 if ($ArtifactRoot) {
-    $Arguments += @('-ArtifactRoot', $ArtifactRoot)
+    & $Installer -ProjectRoot $ProjectRoot -ArtifactRoot $ArtifactRoot
+} else {
+    & $Installer -ProjectRoot $ProjectRoot
 }
-
-& $Installer @Arguments
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }

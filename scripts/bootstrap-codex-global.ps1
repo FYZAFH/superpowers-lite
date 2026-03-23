@@ -78,12 +78,11 @@ if ($Uninstall) {
     $Installer = Join-Path $SourceRoot 'scripts\install-codex.ps1'
 }
 
-$Arguments = @()
 if ($CodexHome) {
-    $Arguments += @('-CodexHome', $CodexHome)
+    & $Installer -CodexHome $CodexHome
+} else {
+    & $Installer
 }
-
-& $Installer @Arguments
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
