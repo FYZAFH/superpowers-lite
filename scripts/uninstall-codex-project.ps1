@@ -1,9 +1,14 @@
 param(
-    [string]$ProjectRoot = (Get-Location).Path,
+    [string]$ProjectRoot,
     [string]$ArtifactRoot
 )
 
 $ErrorActionPreference = 'Stop'
+
+if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
+    $ProjectRoot = (Get-Location).Path
+}
+
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Installer = Join-Path $ScriptDir 'codex_installer.py'
 

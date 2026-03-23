@@ -1,5 +1,5 @@
 param(
-    [string]$ProjectRoot = (Get-Location).Path,
+    [string]$ProjectRoot,
     [string]$SourceRepo,
     [string]$RepoUrl = 'https://github.com/FYZAFH/superpowers-lite.git',
     [string]$RepoRef = 'main',
@@ -8,6 +8,10 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
+    $ProjectRoot = (Get-Location).Path
+}
 
 function Resolve-FullPath([string]$Path) {
     if ([System.IO.Path]::IsPathRooted($Path)) {
