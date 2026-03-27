@@ -1,17 +1,18 @@
 # Superpowers Lite
 
-A shared-source fork of [superpowers](https://github.com/obra/superpowers), with **direct Claude Code plugin installation** and **install-time Codex adaptation** for the same serial workflow.
+A workflow-focused fork of [superpowers](https://github.com/obra/superpowers), with **direct Claude Code plugin installation** and a **Codex-native prompt/config tree** for the same serial workflow.
 
 ## Repository Model
 
-This repo keeps the Claude-oriented prompts as the source of truth, then adapts file names and tool names at render/install time for Codex. The workflow itself stays the same on both platforms.
+This repo keeps the workflow aligned across Claude Code and Codex, but the prompt sources are platform-native because the two tools weight instructions, expose files, and run subagents differently.
 
-- Claude Code stays plugin-native via `.claude-plugin/`, `hooks/`, and `bootstrap.md`
-- Codex gets a rendered bundle with platform-specific replacements during install
-- `bootstrap.md` is the shared session bootstrap source; Claude hooks read it directly, Codex install injects it into `AGENTS.md`
+- Claude Code stays plugin-native via `.claude-plugin/`, `hooks/`, `bootstrap.md`, `skills/`, and `agents/`
+- Codex has its own source tree under `codex/`
+- Render/install copies native platform bundles instead of doing text-level prompt rewriting between platforms
+- `bootstrap.md` remains Claude-only; Codex orchestration lives in `codex/config.toml` and `codex/agents/*.toml`
 - Codex installs into Codex's native filesystem layout:
-  - project scope: `AGENTS.md`, `.agents/skills/`, `.codex/agents/`
-  - user scope: `~/.codex/AGENTS.md`, `~/.agents/skills/`, `~/.codex/agents/`
+  - project scope: `.agents/skills/`, `.codex/config.toml`, `.codex/agents/`
+  - user scope: `~/.agents/skills/`, `~/.codex/config.toml`, `~/.codex/agents/`
 
 ### Simplified
 
@@ -21,28 +22,28 @@ This repo keeps the Claude-oriented prompts as the source of truth, then adapts 
 - **`requesting-code-review` / `receiving-code-review`** (as separate skills) — Merged into a single `code-review` skill. You never dispatch a reviewer without evaluating results.
 - **`test-driven-development`** (as a standalone skill) — The main agent never writes code; the implementer subagent does. TDD methodology is now baked directly into the implementer agent.
 - **`using-git-worktrees`** (as a standalone skill) — Reduced to a setup step in `subagent-driven-development`. Always uses `.worktrees/`, always git-ignored.
-- **Visual companion** — Browser-based brainstorming visualization. ASCII art and text visualization remain.
+- **Visual companion** — Browser-based design/spec visualization. ASCII art and text visualization remain.
 - **Model selection guidance** — The controller doesn't need to decide which model subagents use.
 - **Historical docs and plans** — Internal development history not relevant to users.
 
 ### Restructured
 
-- **Agent-driven architecture** — Prompt templates with `{PLACEHOLDER}` filling replaced by proper subagent files in `agents/`. The agent file defines WHO you are and HOW you work (static). The dispatch prompt provides WHAT you're doing (dynamic).
-  - `agents/implementer.md` — TDD implementer subagent
-  - `agents/spec-reviewer.md` — Spec compliance reviewer
-  - `agents/code-reviewer.md` — Code quality reviewer
+- **Agent-driven architecture** — Prompt templates with `{PLACEHOLDER}` filling replaced by real subagent files. Claude Code keeps its native Markdown agent files in `agents/`; Codex uses `codex/agents/*.toml` registered from `codex/config.toml`. The agent file defines WHO you are and HOW you work (static). The dispatch prompt provides WHAT you're doing (dynamic).
+  - `agents/implementer.md` / `codex/agents/implementer.toml` — TDD implementer subagent
+  - `agents/spec-reviewer.md` / `codex/agents/spec-code-reviewer.toml` — Spec compliance reviewer
+  - `agents/code-reviewer.md` / `codex/agents/quality-code-reviewer.toml` — Code quality reviewer
 - **`code-review`** — Single skill covering two-stage review (spec compliance → code quality) and guidance on evaluating reviewer feedback.
 - **Decision points standardized** — Worktree location (always `.worktrees/`), execution strategy (always subagent-driven), review flow (always two-stage).
 
 ## The Workflow
 
 ```
-brainstorming → writing-plans → subagent-driven-development → finishing-a-development-branch
+writing-specs → writing-plans → subagent-driven-development → finishing-a-development-branch
 ```
 
-1. **brainstorming** — Refines ideas through questions, explores alternatives, presents design in sections for validation.
+1. **writing-specs** — Refines ideas through questions, explores alternatives, presents design in sections for validation, and writes the approved spec.
 2. **writing-plans** — Breaks work into tasks. Every task has file paths, code, verification steps.
-3. **subagent-driven-development** — Dispatches fresh `implementer` subagent per task. Each task gets two-stage review: `spec-reviewer` then `code-reviewer`. Implementer uses strict TDD.
+3. **subagent-driven-development** — Dispatches fresh `implementer` subagent per task. Each task gets two-stage review. In Codex these are `spec-code-reviewer` then `quality-code-reviewer`. Implementer uses strict TDD.
 4. **finishing-a-development-branch** — Verifies tests, presents options (merge/PR/keep/discard), cleans up worktree.
 
 ## Installation
@@ -64,7 +65,11 @@ If you prefer working from a local clone, clone this repo and install it through
 
 ### Codex
 
-Codex installation now uses Codex's native directory structure. Project-local installation does **not** depend on a custom `CODEX_HOME`; after install, just run `codex` in the project and Codex will pick up the project's `AGENTS.md`, `.agents/skills`, and `.codex/agents`.
+Codex installation uses Codex's native directory structure. In Codex, the workflow is branded as **double-SDD**: Specification-Driven Development + Subagent-Driven Development. Project-local installation does **not** depend on a custom `CODEX_HOME`; after install, just run `codex` in the project and Codex will pick up `.agents/skills`, `.codex/config.toml`, and `.codex/agents`.
+
+double-SDD does **not** inject Codex prompt text into `AGENTS.md`. Codex-specific orchestration lives in `.codex/config.toml`, and each custom subagent disables inherited skills through its own TOML config.
+
+Codex-native source files live under [`codex/`](codex/README.md).
 
 Requirements:
 - macOS / Linux: `bash`, `python3`
@@ -82,7 +87,7 @@ codex
 If you want to remove it later:
 
 ```bash
-./.superpowers-lite/uninstall
+./.double-sdd/uninstall
 ```
 
 macOS / Linux, if you already have a local clone of this repo:
@@ -93,7 +98,7 @@ cd ~/example_sound
 codex
 ```
 
-This updates the project's root `AGENTS.md` with a managed Superpowers Lite block, installs skills into `.agents/skills/`, installs custom subagents into `.codex/agents/`, and creates `.superpowers-lite/uninstall` as a self-contained remover. In git repos, `.superpowers-lite/` is also added to `.git/info/exclude`.
+This installs the double-SDD Codex workflow by merging managed orchestration blocks into `.codex/config.toml`, installing skills into `.agents/skills/`, installing custom subagents into `.codex/agents/`, and creating `.double-sdd/uninstall` as a self-contained remover. In git repos, `.double-sdd/` is also added to `.git/info/exclude`.
 
 To remove the project-local installation:
 
@@ -121,7 +126,7 @@ codex
 To remove the project-local installation on Windows:
 
 ```powershell
-.\.superpowers-lite\uninstall.ps1
+.\.double-sdd\uninstall.ps1
 ```
 
 Windows PowerShell, if you already have a local clone of this repo:
@@ -132,7 +137,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File C:\path\to\superpowers-lite\
 codex
 ```
 
-The Windows project-local install creates `uninstall.ps1` and `uninstall.cmd` inside `.superpowers-lite/`.
+The Windows project-local install creates `uninstall.ps1` and `uninstall.cmd` inside `.double-sdd/`.
 
 Global installation, shared by all projects:
 
@@ -151,7 +156,7 @@ codex
 ```
 
 This installs directly into Codex's native user-scoped directories:
-- `${CODEX_HOME:-~/.codex}/AGENTS.md`
+- `${CODEX_HOME:-~/.codex}/config.toml`
 - `${CODEX_HOME:-~/.codex}/agents/`
 - `~/.agents/skills/`
 
@@ -175,7 +180,7 @@ cd superpowers-lite
 ./scripts/install-codex.sh
 ```
 
-By default this updates `${CODEX_HOME:-~/.codex}/AGENTS.md`, installs custom subagents into `${CODEX_HOME:-~/.codex}/agents`, and installs skills into `~/.agents/skills`.
+By default this updates `${CODEX_HOME:-~/.codex}/config.toml`, installs custom subagents into `${CODEX_HOME:-~/.codex}/agents`, and installs skills into `~/.agents/skills`.
 
 To remove the Codex installation:
 
@@ -200,34 +205,38 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\uninstall-codex.ps
 
 ```bash
 ./scripts/render-bootstrap.sh
-python3 ./scripts/render-platform-bundle.py --platform codex --output /tmp/superpowers-codex
+python3 ./scripts/render-platform-bundle.py --platform codex --output /tmp/double-sdd-codex
 ```
 
 The rendered Codex bundle contains:
-- `AGENTS.md`
 - `.agents/skills/...`
+- `.codex/config.toml`
 - `.codex/agents/*.toml`
 
 ## Skills
 
 | Skill | Purpose |
 |-------|---------|
-| `brainstorming` | Socratic design refinement |
+| `writing-specs` | Clarify requirements, validate design, and write the approved spec |
 | `writing-plans` | Detailed implementation plans |
 | `subagent-driven-development` | Serial task execution with two-stage review |
 | `code-review` | Dispatch reviewers + evaluate feedback |
 | `finishing-a-development-branch` | Merge/PR decision workflow |
 | `systematic-debugging` | 4-phase root cause process |
 | `verification-before-completion` | Final safety net before claiming "done" |
-| `using-superpowers` | Introduction to the skills system |
+| `using-double-sdd` | Introduction to the double-SDD skills system |
 
 ## Agents
 
 | Agent | Dispatched by | Role |
 |-------|--------------|------|
 | `implementer` | subagent-driven-development | Implements tasks using TDD |
-| `spec-reviewer` | code-review | Verifies implementation matches spec |
-| `code-reviewer` | code-review | Reviews code quality and production readiness |
+| `spec-reviewer` / `spec-code-reviewer` | code-review | Verifies implementation matches spec |
+| `code-reviewer` / `quality-code-reviewer` | code-review | Reviews code quality and production readiness |
+| `spec-document-reviewer` | writing-specs | Reviews specs before planning |
+| `plan-document-reviewer` | writing-plans | Reviews plan chunks before execution |
+
+For Codex, these custom agents are registered from `.codex/config.toml`.
 
 ## Philosophy
 

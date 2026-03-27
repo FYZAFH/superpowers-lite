@@ -5,7 +5,7 @@ set -euo pipefail
 SOURCE_REPO=""
 REPO_URL="https://github.com/FYZAFH/superpowers-lite.git"
 REPO_REF="main"
-CHECKOUT_DIR="${XDG_CACHE_HOME:-${HOME}/.cache}/superpowers-lite/repo"
+CHECKOUT_DIR="${XDG_CACHE_HOME:-${HOME}/.cache}/double-sdd/repo"
 CODEX_HOME_DIR=""
 UNINSTALL=0
 
@@ -13,7 +13,7 @@ usage() {
     cat <<EOF
 Usage: $(basename "$0") [--source-repo PATH] [--repo-url URL] [--repo-ref REF] [--checkout-dir PATH] [--codex-home PATH] [--uninstall]
 
-Fetches Superpowers Lite source when needed, then installs or removes the
+Fetches the double-SDD Codex source bundle when needed, then installs or removes the
 native global Codex setup.
 EOF
 }

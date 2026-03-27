@@ -10,8 +10,8 @@ usage() {
     cat <<EOF
 Usage: $(basename "$0") [--codex-home PATH]
 
-Installs the native Codex-adapted Superpowers Lite bundle:
-- updates CODEX_HOME/AGENTS.md
+Installs the native double-SDD bundle for Codex:
+- updates CODEX_HOME/config.toml
 - installs custom subagents into CODEX_HOME/agents
 - installs custom skills into \$HOME/.agents/skills
 EOF

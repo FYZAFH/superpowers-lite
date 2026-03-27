@@ -4,7 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-TEST_ROOT="$(mktemp -d /tmp/superpowers-lite-codex-bootstrap.XXXXXX)"
+TEST_ROOT="$(mktemp -d /tmp/double-sdd-codex-bootstrap.XXXXXX)"
 trap 'rm -rf "$TEST_ROOT"' EXIT
 
 PROJECT_ROOT="${TEST_ROOT}/example_sound"
@@ -27,16 +27,24 @@ git -C "$SOURCE_REPO" commit -m "snapshot" >/dev/null 2>&1
     --checkout-dir "$CACHE_DIR"
 
 test -d "${CACHE_DIR}/.git"
-test -f "${PROJECT_ROOT}/AGENTS.md"
-test -d "${PROJECT_ROOT}/.agents/skills/brainstorming"
+test -d "${PROJECT_ROOT}/.agents/skills/writing-specs"
 test -f "${PROJECT_ROOT}/.codex/agents/implementer.toml"
-test -x "${PROJECT_ROOT}/.superpowers-lite/uninstall"
-grep -q "Codex's native skills system" "${PROJECT_ROOT}/AGENTS.md"
+test -f "${PROJECT_ROOT}/.codex/agents/plan-document-reviewer.toml"
+test -f "${PROJECT_ROOT}/.codex/config.toml"
+test -x "${PROJECT_ROOT}/.double-sdd/uninstall"
+if [ -e "${PROJECT_ROOT}/AGENTS.md" ]; then
+    echo "bootstrap install should not create AGENTS.md" >&2
+    exit 1
+fi
+grep -q '^\[\[skills\.config\]\]$' "${PROJECT_ROOT}/.codex/agents/implementer.toml"
+grep -Fq "path = \"${PROJECT_ROOT}/.agents/skills/writing-specs/SKILL.md\"" "${PROJECT_ROOT}/.codex/agents/implementer.toml"
+grep -q '^compact_prompt = """$' "${PROJECT_ROOT}/.codex/config.toml"
+grep -q '^config_file = "\./agents/implementer.toml"$' "${PROJECT_ROOT}/.codex/config.toml"
 
-"${PROJECT_ROOT}/.superpowers-lite/uninstall"
+"${PROJECT_ROOT}/.double-sdd/uninstall"
 
-if [ -e "${PROJECT_ROOT}/.agents/skills/brainstorming" ]; then
-    echo "brainstorming skill still exists after generated uninstall" >&2
+if [ -e "${PROJECT_ROOT}/.agents/skills/writing-specs" ]; then
+    echo "writing-specs skill still exists after generated uninstall" >&2
     exit 1
 fi
 
@@ -45,12 +53,17 @@ if [ -e "${PROJECT_ROOT}/.codex/agents/implementer.toml" ]; then
     exit 1
 fi
 
-if [ -e "${PROJECT_ROOT}/.superpowers-lite" ]; then
-    echo ".superpowers-lite still exists after generated uninstall" >&2
+if grep -q "double-sdd:codex-config" "${PROJECT_ROOT}/.codex/config.toml"; then
+    echo "managed config block still exists after generated uninstall" >&2
     exit 1
 fi
 
-if grep -q "superpowers-lite:start" "${PROJECT_ROOT}/.git/info/exclude"; then
+if [ -e "${PROJECT_ROOT}/.double-sdd" ]; then
+    echo ".double-sdd still exists after generated uninstall" >&2
+    exit 1
+fi
+
+if grep -q "double-sdd:start" "${PROJECT_ROOT}/.git/info/exclude"; then
     echo "managed exclude block still exists after generated uninstall" >&2
     exit 1
 fi

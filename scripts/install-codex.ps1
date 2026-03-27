@@ -14,7 +14,7 @@ if (Get-Command py -ErrorAction SilentlyContinue) {
 } elseif (Get-Command python3 -ErrorAction SilentlyContinue) {
     $PythonCommand = @('python3')
 } else {
-    throw 'Python 3 is required to install Superpowers Lite for Codex on Windows.'
+    throw 'Python 3 is required to install double-SDD for Codex on Windows.'
 }
 
 $Arguments = @($Installer, 'install-global', '--repo-root', $RepoRoot)

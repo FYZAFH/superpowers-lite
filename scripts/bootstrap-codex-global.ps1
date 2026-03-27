@@ -19,9 +19,9 @@ function Resolve-FullPath([string]$Path) {
 
 function Default-CheckoutDir() {
     if ($env:LOCALAPPDATA) {
-        return Join-Path $env:LOCALAPPDATA 'superpowers-lite\repo'
+        return Join-Path $env:LOCALAPPDATA 'double-sdd\repo'
     }
-    return Join-Path $HOME 'AppData\Local\superpowers-lite\repo'
+    return Join-Path $HOME 'AppData\Local\double-sdd\repo'
 }
 
 if (-not $CheckoutDir) {

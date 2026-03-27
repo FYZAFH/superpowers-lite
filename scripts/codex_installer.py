@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -13,17 +14,35 @@ import textwrap
 from pathlib import Path
 
 
-AGENTS_MARKER_START = "<!-- superpowers-lite:start -->"
-AGENTS_MARKER_END = "<!-- superpowers-lite:end -->"
-EXCLUDE_MARKER_START = "# superpowers-lite:start"
-EXCLUDE_MARKER_END = "# superpowers-lite:end"
-SKILL_OWNER_MARKER = ".superpowers-lite-owner"
-SKILL_OWNER_VALUE = "superpowers-lite"
-CUSTOM_AGENT_MARKER = "# superpowers-lite:managed"
+CONFIG_ROOT_MARKER_START = "# double-sdd:codex-config-root:start"
+CONFIG_ROOT_MARKER_END = "# double-sdd:codex-config-root:end"
+CONFIG_AGENTS_MARKER_START = "# double-sdd:codex-config-agents:start"
+CONFIG_AGENTS_MARKER_END = "# double-sdd:codex-config-agents:end"
+EXCLUDE_MARKER_START = "# double-sdd:start"
+EXCLUDE_MARKER_END = "# double-sdd:end"
+SKILL_OWNER_MARKER = ".double-sdd-owner"
+SKILL_OWNER_VALUE = "double-sdd"
+CUSTOM_AGENT_MARKER = "# double-sdd:managed"
+
+CONFIG_ROOT_CONFLICT_PATTERNS = [
+    ("developer_instructions", re.compile(r"(?m)^\s*developer_instructions\s*=")),
+    ("compact_prompt", re.compile(r"(?m)^\s*compact_prompt\s*=")),
+]
+
+CONFIG_AGENT_CONFLICT_PATTERNS = [
+    ("[agents.implementer]", re.compile(r"(?m)^\s*\[agents\.implementer\]\s*$")),
+    ("[agents.spec-code-reviewer]", re.compile(r"(?m)^\s*\[agents\.spec-code-reviewer\]\s*$")),
+    ("[agents.quality-code-reviewer]", re.compile(r"(?m)^\s*\[agents\.quality-code-reviewer\]\s*$")),
+    ("[agents.spec-document-reviewer]", re.compile(r"(?m)^\s*\[agents\.spec-document-reviewer\]\s*$")),
+    ("[agents.plan-document-reviewer]", re.compile(r"(?m)^\s*\[agents\.plan-document-reviewer\]\s*$")),
+]
 
 
 def resolve_path(path: str | Path) -> Path:
-    return Path(path).expanduser().resolve()
+    expanded = Path(path).expanduser()
+    if expanded.is_absolute():
+        return expanded
+    return (Path.cwd() / expanded).absolute()
 
 
 def path_exists(path: Path) -> bool:
@@ -71,12 +90,20 @@ def default_global_agents_root(codex_home: Path) -> Path:
     return codex_home / "agents"
 
 
+def default_global_config_file(codex_home: Path) -> Path:
+    return codex_home / "config.toml"
+
+
 def default_project_skills_root(project_root: Path) -> Path:
     return project_root / ".agents" / "skills"
 
 
 def default_project_agents_root(project_root: Path) -> Path:
     return project_root / ".codex" / "agents"
+
+
+def default_project_config_file(project_root: Path) -> Path:
+    return project_root / ".codex" / "config.toml"
 
 
 def strip_managed_block(text: str, start_marker: str, end_marker: str) -> str:
@@ -97,28 +124,74 @@ def strip_managed_block(text: str, start_marker: str, end_marker: str) -> str:
     return "\n".join(result)
 
 
-def update_managed_block_file(path: Path, managed_text: str, start_marker: str, end_marker: str) -> None:
-    cleaned = strip_managed_block(read_text(path), start_marker, end_marker).rstrip("\n")
-    managed = managed_text.rstrip("\n")
+def split_toml_root_and_tables(text: str) -> tuple[str, str]:
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        if line.lstrip().startswith("["):
+            return "\n".join(lines[:index]).strip(), "\n".join(lines[index:]).strip()
+    return text.strip(), ""
+
+
+def find_config_conflicts(existing_text: str) -> list[str]:
+    root_text, tables_text = split_toml_root_and_tables(existing_text)
+    conflicts: list[str] = []
+
+    for label, pattern in CONFIG_ROOT_CONFLICT_PATTERNS:
+        if pattern.search(root_text):
+            conflicts.append(label)
+
+    for label, pattern in CONFIG_AGENT_CONFLICT_PATTERNS:
+        if pattern.search(tables_text):
+            conflicts.append(label)
+
+    return conflicts
+
+
+def update_managed_config_file(path: Path, managed_text: str) -> None:
+    existing = read_text(path)
+    stripped = strip_managed_block(
+        strip_managed_block(existing, CONFIG_ROOT_MARKER_START, CONFIG_ROOT_MARKER_END),
+        CONFIG_AGENTS_MARKER_START,
+        CONFIG_AGENTS_MARKER_END,
+    ).rstrip("\n")
+
+    conflicts = find_config_conflicts(stripped)
+    if conflicts:
+        joined = ", ".join(conflicts)
+        raise RuntimeError(f"refusing to modify existing config with conflicting Codex keys/tables: {path} ({joined})")
+
+    existing_root, existing_tables = split_toml_root_and_tables(stripped)
+    managed_root, managed_tables = split_toml_root_and_tables(managed_text.rstrip("\n"))
 
     sections: list[str] = []
-    if cleaned:
-        sections.append(cleaned)
-    sections.append("\n".join([start_marker, managed, end_marker]))
-    write_text(path, "\n\n".join(sections) + "\n")
+    if existing_root:
+        sections.append(existing_root)
+    if managed_root:
+        sections.append("\n".join([CONFIG_ROOT_MARKER_START, managed_root, CONFIG_ROOT_MARKER_END]))
+    if existing_tables:
+        sections.append(existing_tables)
+    if managed_tables:
+        sections.append("\n".join([CONFIG_AGENTS_MARKER_START, managed_tables, CONFIG_AGENTS_MARKER_END]))
+
+    write_text(path, "\n\n".join(sections) + ("\n" if sections else ""))
 
 
-def remove_managed_block_file(path: Path, start_marker: str, end_marker: str) -> None:
+def remove_managed_config_file(path: Path) -> None:
     if not path.is_file():
         return
-    cleaned = strip_managed_block(read_text(path), start_marker, end_marker)
+
+    cleaned = strip_managed_block(
+        strip_managed_block(read_text(path), CONFIG_ROOT_MARKER_START, CONFIG_ROOT_MARKER_END),
+        CONFIG_AGENTS_MARKER_START,
+        CONFIG_AGENTS_MARKER_END,
+    )
     if cleaned:
         write_text(path, cleaned.rstrip("\n") + "\n")
     else:
         write_text(path, "")
 
 
-def render_codex_bundle(repo_root: Path, output_dir: Path) -> None:
+def render_codex_bundle(repo_root: Path, output_dir: Path, logical_root: Path) -> None:
     command = [
         sys.executable,
         str(repo_root / "scripts" / "render-platform-bundle.py"),
@@ -126,6 +199,8 @@ def render_codex_bundle(repo_root: Path, output_dir: Path) -> None:
         "codex",
         "--output",
         str(output_dir),
+        "--logical-root",
+        str(logical_root),
     ]
     subprocess.run(command, check=True)
 
@@ -201,54 +276,12 @@ def prune_empty_directories(start_path: Path, stop_path: Path) -> None:
         path = path.parent
 
 
-def normalize_path_string(path: str | Path) -> str:
-    return os.path.normcase(str(resolve_path(path)))
-
-
-def resolve_link_target(link_path: Path) -> Path:
-    raw_target = os.readlink(link_path)
-    target_path = Path(raw_target)
-    if not target_path.is_absolute():
-        target_path = link_path.parent / target_path
-    return resolve_path(target_path)
-
-
-def is_legacy_managed_skill_target(target: Path, legacy_install_root: Path) -> bool:
-    if not path_exists(target):
-        return False
-
-    expected_source = legacy_install_root / "skills" / target.name
-    expected_source_string = normalize_path_string(expected_source)
-
-    if target.is_symlink():
-        try:
-            return normalize_path_string(resolve_link_target(target)) == expected_source_string
-        except OSError:
-            return False
-
-    marker_path = target / SKILL_OWNER_MARKER
-    if marker_path.is_file():
-        owner = marker_path.read_text(encoding="utf-8").strip()
-        return normalize_path_string(owner) == expected_source_string
-
-    return False
-
-
-def remove_legacy_global_install(codex_home: Path) -> None:
-    legacy_install_root = codex_home / "vendor_imports" / "superpowers-lite"
-    legacy_skills_root = codex_home / "skills"
-
-    if legacy_skills_root.is_dir():
-        for target in legacy_skills_root.iterdir():
-            if is_legacy_managed_skill_target(target, legacy_install_root):
-                remove_path(target)
-
-    remove_path(legacy_install_root)
-    remove_path(Path(f"{legacy_install_root}.tmp"))
-    prune_empty_directories(legacy_skills_root, codex_home)
-
-
-def install_rendered_bundle(staging_root: Path, skills_root: Path, agents_root: Path, agents_file: Path) -> None:
+def install_rendered_bundle(
+    staging_root: Path,
+    skills_root: Path,
+    agents_root: Path,
+    config_file: Path,
+) -> None:
     skills_root.mkdir(parents=True, exist_ok=True)
     agents_root.mkdir(parents=True, exist_ok=True)
 
@@ -262,29 +295,24 @@ def install_rendered_bundle(staging_root: Path, skills_root: Path, agents_root: 
     for agent_file in sorted((staging_root / ".codex" / "agents").glob("*.toml")):
         install_agent_target(agent_file, agents_root / agent_file.name)
 
-    update_managed_block_file(
-        agents_file,
-        read_text(staging_root / "AGENTS.md"),
-        AGENTS_MARKER_START,
-        AGENTS_MARKER_END,
-    )
+    update_managed_config_file(config_file, read_text(staging_root / ".codex" / "config.toml"))
 
 
 def install_global(repo_root: Path, codex_home: Path) -> None:
     codex_home = resolve_path(codex_home)
     skills_root = default_global_skills_root()
+    home_root = default_global_home_root()
     agents_root = default_global_agents_root(codex_home)
+    config_file = default_global_config_file(codex_home)
 
-    remove_legacy_global_install(codex_home)
-
-    with tempfile.TemporaryDirectory(prefix="superpowers-lite-codex-global.") as temp_dir:
+    with tempfile.TemporaryDirectory(prefix="double-sdd-codex-global.") as temp_dir:
         staging_root = Path(temp_dir)
-        render_codex_bundle(repo_root, staging_root)
-        install_rendered_bundle(staging_root, skills_root, agents_root, codex_home / "AGENTS.md")
+        render_codex_bundle(repo_root, staging_root, home_root)
+        install_rendered_bundle(staging_root, skills_root, agents_root, config_file)
 
     print(f"Installed Codex skills to {skills_root}")
     print(f"Installed Codex subagents to {agents_root}")
-    print(f"Updated {codex_home / 'AGENTS.md'} with managed Superpowers Lite bootstrap block")
+    print(f"Updated {config_file} with managed double-SDD Codex config")
 
 
 def uninstall_global(codex_home: Path) -> None:
@@ -292,18 +320,18 @@ def uninstall_global(codex_home: Path) -> None:
     skills_root = default_global_skills_root()
     home_root = default_global_home_root()
     agents_root = default_global_agents_root(codex_home)
+    config_file = default_global_config_file(codex_home)
 
     remove_managed_skill_targets(skills_root)
     remove_managed_agent_targets(agents_root)
-    remove_managed_block_file(codex_home / "AGENTS.md", AGENTS_MARKER_START, AGENTS_MARKER_END)
-    remove_legacy_global_install(codex_home)
+    remove_managed_config_file(config_file)
 
     prune_empty_directories(skills_root, home_root)
     prune_empty_directories(agents_root, codex_home)
 
     print(f"Removed Codex skills from {skills_root}")
     print(f"Removed Codex subagents from {agents_root}")
-    print(f"Removed managed Superpowers Lite bootstrap block from {codex_home / 'AGENTS.md'}")
+    print(f"Removed managed double-SDD Codex config from {config_file}")
 
 
 def sh_quote(value: str | Path) -> str:
@@ -323,7 +351,7 @@ def build_shell_uninstaller(
     artifact_root: Path,
     skills_root: Path,
     agents_root: Path,
-    agents_file: Path,
+    config_file: Path,
 ) -> str:
     return textwrap.dedent(
         f"""\
@@ -335,9 +363,11 @@ def build_shell_uninstaller(
         ARTIFACT_ROOT={sh_quote(artifact_root)}
         SKILLS_ROOT={sh_quote(skills_root)}
         AGENTS_ROOT={sh_quote(agents_root)}
-        AGENTS_FILE={sh_quote(agents_file)}
-        AGENTS_MARKER_START={sh_quote(AGENTS_MARKER_START)}
-        AGENTS_MARKER_END={sh_quote(AGENTS_MARKER_END)}
+        CONFIG_FILE={sh_quote(config_file)}
+        CONFIG_ROOT_MARKER_START={sh_quote(CONFIG_ROOT_MARKER_START)}
+        CONFIG_ROOT_MARKER_END={sh_quote(CONFIG_ROOT_MARKER_END)}
+        CONFIG_AGENTS_MARKER_START={sh_quote(CONFIG_AGENTS_MARKER_START)}
+        CONFIG_AGENTS_MARKER_END={sh_quote(CONFIG_AGENTS_MARKER_END)}
         EXCLUDE_MARKER_START={sh_quote(EXCLUDE_MARKER_START)}
         EXCLUDE_MARKER_END={sh_quote(EXCLUDE_MARKER_END)}
         SKILL_OWNER_MARKER={sh_quote(SKILL_OWNER_MARKER)}
@@ -354,7 +384,7 @@ def build_shell_uninstaller(
                 return 0
             fi
 
-            tmp_file="$(mktemp "${{TMPDIR:-/tmp}}/superpowers-lite-agents.XXXXXX")"
+            tmp_file="$(mktemp "${{TMPDIR:-/tmp}}/double-sdd-config.XXXXXX")"
             awk -v start="$start" -v end="$end" '
                 $0 == start {{ skip = 1; next }}
                 $0 == end {{ skip = 0; next }}
@@ -421,7 +451,7 @@ def build_shell_uninstaller(
                 return 0
             fi
 
-            tmp_file="$(mktemp "${{TMPDIR:-/tmp}}/superpowers-lite-exclude.XXXXXX")"
+            tmp_file="$(mktemp "${{TMPDIR:-/tmp}}/double-sdd-exclude.XXXXXX")"
             awk -v start="$EXCLUDE_MARKER_START" -v end="$EXCLUDE_MARKER_END" '
                 $0 == start {{ skip = 1; next }}
                 $0 == end {{ skip = 0; next }}
@@ -430,14 +460,15 @@ def build_shell_uninstaller(
             mv "$tmp_file" "$exclude_file"
         }}
 
-        remove_managed_block_file "$AGENTS_FILE" "$AGENTS_MARKER_START" "$AGENTS_MARKER_END"
+        remove_managed_block_file "$CONFIG_FILE" "$CONFIG_ROOT_MARKER_START" "$CONFIG_ROOT_MARKER_END"
+        remove_managed_block_file "$CONFIG_FILE" "$CONFIG_AGENTS_MARKER_START" "$CONFIG_AGENTS_MARKER_END"
         remove_managed_skills
         remove_managed_agents
         prune_empty_directories "$SKILLS_ROOT" "$PROJECT_ROOT"
         prune_empty_directories "$AGENTS_ROOT" "$PROJECT_ROOT"
         remove_git_exclude
 
-        printf 'Removing project-local Superpowers Lite helpers from %s\\n' "$ARTIFACT_ROOT"
+        printf 'Removing project-local double-SDD helpers from %s\\n' "$ARTIFACT_ROOT"
         exec /bin/sh -c 'rm -rf "$1"' sh "$ARTIFACT_ROOT"
         """
     )
@@ -459,7 +490,7 @@ def build_ps_uninstaller(
     artifact_root: Path,
     skills_root: Path,
     agents_root: Path,
-    agents_file: Path,
+    config_file: Path,
 ) -> str:
     cleanup_artifact_root = cmd_escape(artifact_root)
     return textwrap.dedent(
@@ -471,9 +502,11 @@ def build_ps_uninstaller(
         $ArtifactRoot = {ps_quote(artifact_root)}
         $SkillsRoot = {ps_quote(skills_root)}
         $AgentsRoot = {ps_quote(agents_root)}
-        $AgentsFile = {ps_quote(agents_file)}
-        $AgentsMarkerStart = {ps_quote(AGENTS_MARKER_START)}
-        $AgentsMarkerEnd = {ps_quote(AGENTS_MARKER_END)}
+        $ConfigFile = {ps_quote(config_file)}
+        $ConfigRootMarkerStart = {ps_quote(CONFIG_ROOT_MARKER_START)}
+        $ConfigRootMarkerEnd = {ps_quote(CONFIG_ROOT_MARKER_END)}
+        $ConfigAgentsMarkerStart = {ps_quote(CONFIG_AGENTS_MARKER_START)}
+        $ConfigAgentsMarkerEnd = {ps_quote(CONFIG_AGENTS_MARKER_END)}
         $ExcludeMarkerStart = {ps_quote(EXCLUDE_MARKER_START)}
         $ExcludeMarkerEnd = {ps_quote(EXCLUDE_MARKER_END)}
         $SkillOwnerMarker = {ps_quote(SKILL_OWNER_MARKER)}
@@ -622,16 +655,17 @@ def build_ps_uninstaller(
             Write-Utf8File -Path $excludePath -Content $cleaned
         }}
 
-        Remove-ManagedBlockFile -Path $AgentsFile -StartMarker $AgentsMarkerStart -EndMarker $AgentsMarkerEnd
+        Remove-ManagedBlockFile -Path $ConfigFile -StartMarker $ConfigRootMarkerStart -EndMarker $ConfigRootMarkerEnd
+        Remove-ManagedBlockFile -Path $ConfigFile -StartMarker $ConfigAgentsMarkerStart -EndMarker $ConfigAgentsMarkerEnd
         Remove-ManagedSkills
         Remove-ManagedAgents
         Remove-EmptyDirectories -StartPath $SkillsRoot -StopPath $ProjectRoot
         Remove-EmptyDirectories -StartPath $AgentsRoot -StopPath $ProjectRoot
         Remove-GitExcludeBlock
 
-        Write-Host "Removing project-local Superpowers Lite helpers from $ArtifactRoot"
+        Write-Host "Removing project-local double-SDD helpers from $ArtifactRoot"
 
-        $cleanupPath = Join-Path ([System.IO.Path]::GetTempPath()) ("superpowers-lite-uninstall-" + [Guid]::NewGuid().ToString() + ".cmd")
+        $cleanupPath = Join-Path ([System.IO.Path]::GetTempPath()) ("double-sdd-uninstall-" + [Guid]::NewGuid().ToString() + ".cmd")
         $cleanupContent = "@echo off`r`nping 127.0.0.1 -n 2 >nul`r`nrmdir /s /q ""{cleanup_artifact_root}""`r`ndel ""%~f0""`r`n"
         Write-Utf8File -Path $cleanupPath -Content $cleanupContent
 
@@ -645,7 +679,7 @@ def write_project_helpers(
     artifact_root: Path,
     skills_root: Path,
     agents_root: Path,
-    agents_file: Path,
+    config_file: Path,
 ) -> None:
     shell_uninstaller = artifact_root / "uninstall"
     cmd_uninstaller = artifact_root / "uninstall.cmd"
@@ -653,12 +687,12 @@ def write_project_helpers(
 
     write_text(
         shell_uninstaller,
-        build_shell_uninstaller(project_root, artifact_root, skills_root, agents_root, agents_file),
+        build_shell_uninstaller(project_root, artifact_root, skills_root, agents_root, config_file),
     )
     write_text(cmd_uninstaller, build_cmd_uninstaller())
     write_text(
         ps_uninstaller,
-        build_ps_uninstaller(project_root, artifact_root, skills_root, agents_root, agents_file),
+        build_ps_uninstaller(project_root, artifact_root, skills_root, agents_root, config_file),
     )
 
     make_executable(shell_uninstaller)
@@ -690,7 +724,7 @@ def git_exclude_path(project_root: Path) -> Path | None:
 
 
 def ensure_git_exclude(project_root: Path, artifact_root: Path) -> None:
-    default_artifact_root = project_root / ".superpowers-lite"
+    default_artifact_root = project_root / ".double-sdd"
     if resolve_path(artifact_root) != resolve_path(default_artifact_root):
         return
 
@@ -705,7 +739,7 @@ def ensure_git_exclude(project_root: Path, artifact_root: Path) -> None:
     sections: list[str] = []
     if existing:
         sections.append(existing)
-    sections.append("\n".join([EXCLUDE_MARKER_START, ".superpowers-lite/", EXCLUDE_MARKER_END]))
+    sections.append("\n".join([EXCLUDE_MARKER_START, ".double-sdd/", EXCLUDE_MARKER_END]))
     write_text(exclude_path, "\n\n".join(sections) + "\n")
 
 
@@ -740,25 +774,25 @@ def install_project(
     artifact_root: Path | None = None,
 ) -> None:
     project_root = resolve_path(project_root)
-    artifact_root = resolve_path(artifact_root or (project_root / ".superpowers-lite"))
+    artifact_root = resolve_path(artifact_root or (project_root / ".double-sdd"))
     skills_root = default_project_skills_root(project_root)
     agents_root = default_project_agents_root(project_root)
-    agents_file = project_root / "AGENTS.md"
+    config_file = default_project_config_file(project_root)
 
     artifact_root.mkdir(parents=True, exist_ok=True)
     cleanup_project_artifact_root(artifact_root)
 
-    with tempfile.TemporaryDirectory(prefix="superpowers-lite-codex-project.") as temp_dir:
+    with tempfile.TemporaryDirectory(prefix="double-sdd-codex-project.") as temp_dir:
         staging_root = Path(temp_dir)
-        render_codex_bundle(repo_root, staging_root)
-        install_rendered_bundle(staging_root, skills_root, agents_root, agents_file)
+        render_codex_bundle(repo_root, staging_root, project_root)
+        install_rendered_bundle(staging_root, skills_root, agents_root, config_file)
 
-    write_project_helpers(project_root, artifact_root, skills_root, agents_root, agents_file)
+    write_project_helpers(project_root, artifact_root, skills_root, agents_root, config_file)
     ensure_git_exclude(project_root, artifact_root)
 
     print(f"Installed project Codex skills to {skills_root}")
     print(f"Installed project Codex subagents to {agents_root}")
-    print(f"Updated {agents_file} with managed Superpowers Lite bootstrap block")
+    print(f"Updated {config_file} with managed double-SDD Codex config")
     print(f"Created uninstaller at {artifact_root / 'uninstall'}")
     print(f"Created Windows uninstaller at {artifact_root / 'uninstall.cmd'}")
     print("Start Codex for this project by running `codex` inside the project root")
@@ -769,14 +803,14 @@ def uninstall_project(
     artifact_root: Path | None = None,
 ) -> None:
     project_root = resolve_path(project_root)
-    artifact_root = resolve_path(artifact_root or (project_root / ".superpowers-lite"))
+    artifact_root = resolve_path(artifact_root or (project_root / ".double-sdd"))
     skills_root = default_project_skills_root(project_root)
     agents_root = default_project_agents_root(project_root)
-    agents_file = project_root / "AGENTS.md"
+    config_file = default_project_config_file(project_root)
 
     remove_managed_skill_targets(skills_root)
     remove_managed_agent_targets(agents_root)
-    remove_managed_block_file(agents_file, AGENTS_MARKER_START, AGENTS_MARKER_END)
+    remove_managed_config_file(config_file)
     remove_git_exclude(project_root)
     prune_empty_directories(skills_root, project_root)
     prune_empty_directories(agents_root, project_root)
@@ -785,7 +819,7 @@ def uninstall_project(
 
     print(f"Removed project Codex skills from {skills_root}")
     print(f"Removed project Codex subagents from {agents_root}")
-    print(f"Removed managed Superpowers Lite bootstrap block from {agents_file}")
+    print(f"Removed managed double-SDD Codex config from {config_file}")
 
 
 def parse_args() -> argparse.Namespace:

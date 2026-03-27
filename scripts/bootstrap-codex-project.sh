@@ -6,14 +6,14 @@ PROJECT_ROOT="$(pwd)"
 SOURCE_REPO=""
 REPO_URL="https://github.com/FYZAFH/superpowers-lite.git"
 REPO_REF="main"
-CHECKOUT_DIR="${XDG_CACHE_HOME:-${HOME}/.cache}/superpowers-lite/repo"
+CHECKOUT_DIR="${XDG_CACHE_HOME:-${HOME}/.cache}/double-sdd/repo"
 ARTIFACT_ROOT=""
 
 usage() {
     cat <<EOF
 Usage: $(basename "$0") [--project-root PATH] [--source-repo PATH] [--repo-url URL] [--repo-ref REF] [--checkout-dir PATH] [--artifact-root PATH]
 
-Fetches Superpowers Lite source when needed, then installs the native
+Fetches the double-SDD Codex source bundle when needed, then installs the native
 project-scoped Codex setup into the target project.
 EOF
 }

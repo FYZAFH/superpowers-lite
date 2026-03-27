@@ -11,11 +11,11 @@ usage() {
     cat <<EOF
 Usage: $(basename "$0") [--project-root PATH] [--artifact-root PATH]
 
-Installs the native project-scoped Codex adaptation into the target project:
-- updates PROJECT_ROOT/AGENTS.md
+Installs the native project-scoped double-SDD bundle into the target Codex project:
+- updates PROJECT_ROOT/.codex/config.toml
 - installs custom subagents into PROJECT_ROOT/.codex/agents
 - installs custom skills into PROJECT_ROOT/.agents/skills
-- creates uninstall helpers in PROJECT_ROOT/.superpowers-lite
+- creates uninstall helpers in PROJECT_ROOT/.double-sdd
 EOF
 }
 

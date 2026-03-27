@@ -9,8 +9,8 @@ usage() {
     cat <<EOF
 Usage: $(basename "$0") [--codex-home PATH]
 
-Removes the native Codex-adapted Superpowers Lite bundle from:
-- CODEX_HOME/AGENTS.md
+Removes the native double-SDD bundle for Codex from:
+- CODEX_HOME/config.toml
 - CODEX_HOME/agents
 - \$HOME/.agents/skills
 EOF
